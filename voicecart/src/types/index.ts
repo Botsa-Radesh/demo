@@ -11,11 +11,12 @@ export interface Product {
   brand: string;
   allergens: Allergen[];
   tags: string[];
+  trending?: boolean;
 }
 
 export type Category = 'Fruits & Vegetables' | 'Dairy' | 'Staples' | 'Snacks' | 'Beverages' | 'Personal Care' | 'Household';
 
-export type Allergen = 'Peanuts' | 'Dairy' | 'Gluten' | 'Soy' | 'Egg' | 'Tree Nuts' | 'Seafood';
+export type Allergen = 'Peanuts' | 'Dairy' | 'Gluten' | 'Soy' | 'Egg' | 'Tree Nuts' | 'Seafood' | 'Fish';
 
 export type DietType = 'veg' | 'non-veg' | 'vegan';
 
