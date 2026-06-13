@@ -179,14 +179,134 @@ export function getProductById(id: string): Product | undefined {
   return products.find(p => p.id === id);
 }
 
+// Synonym map — common alternate terms that map to searchable keywords
+const SYNONYMS: Record<string, string[]> = {
+  veggies: ['vegetable', 'vegetables'],
+  veggie: ['vegetable'],
+  veg: ['vegetable', 'vegetables'],
+  sabzi: ['vegetable'],
+  sabji: ['vegetable'],
+  greens: ['vegetable', 'green'],
+  fruits: ['fruit'],
+  dairy: ['dairy', 'milk'],
+  drinks: ['beverage'],
+  bevs: ['beverage'],
+  soda: ['beverage', 'cold'],
+  juice: ['juice', 'beverage'],
+  tea: ['tea', 'beverage'],
+  coffee: ['coffee', 'beverage'],
+  dal: ['dal', 'lentil'],
+  lentils: ['dal'],
+  pulses: ['dal'],
+  grain: ['grain', 'staple'],
+  grains: ['grain', 'staple'],
+  atta: ['flour', 'wheat'],
+  flour: ['flour', 'wheat'],
+  masala: ['spice', 'masala'],
+  spices: ['spice'],
+  oil: ['oil', 'cooking'],
+  oils: ['oil'],
+  snack: ['snack'],
+  snacks: ['snack'],
+  chips: ['chips', 'snack'],
+  biscuit: ['biscuit', 'snack'],
+  biscuits: ['biscuit', 'snack'],
+  cookies: ['biscuit'],
+  soap: ['personal', 'soap'],
+  cleaning: ['cleaning', 'household'],
+  laundry: ['laundry', 'household'],
+  meat: ['meat', 'protein', 'non-veg'],
+  nonveg: ['non-veg', 'meat'],
+  protein: ['protein'],
+  breakfast: ['breakfast'],
+  cereal: ['breakfast', 'cereal'],
+  noodles: ['instant', 'snack'],
+  pasta: ['instant'],
+  butter: ['butter', 'dairy'],
+  cheese: ['dairy', 'cheese'],
+  paneer: ['dairy', 'protein'],
+  ghee: ['dairy', 'staple'],
+  curd: ['dairy'],
+  dahi: ['dairy'],
+  yogurt: ['dairy'],
+  eggs: ['eggs', 'protein'],
+  egg: ['eggs', 'protein'],
+  chicken: ['meat', 'protein', 'non-veg'],
+  fish: ['seafood', 'protein', 'non-veg'],
+  mutton: ['meat', 'protein', 'non-veg'],
+};
+
+function scoreProduct(product: Product, words: string[]): number {
+  let score = 0;
+  const name = product.name.toLowerCase();
+  const brand = product.brand.toLowerCase();
+  const cat = product.category.toLowerCase();
+  const unit = product.unit.toLowerCase();
+
+  for (const w of words) {
+    if (w.length < 2) continue;
+
+    // Exact full name match — highest priority
+    if (name === w) score += 100;
+    // Name starts with the word
+    else if (name.startsWith(w)) score += 60;
+    // Name contains the word
+    else if (name.includes(w)) score += 40;
+
+    // Brand match
+    if (brand === w) score += 30;
+    else if (brand.includes(w)) score += 15;
+
+    // Tag match
+    if (product.tags.some(t => t === w)) score += 25;
+    else if (product.tags.some(t => t.includes(w))) score += 12;
+
+    // Category match
+    if (cat.includes(w)) score += 10;
+
+    // Unit match (e.g. "1kg", "500g")
+    if (unit.includes(w)) score += 5;
+  }
+
+  return score;
+}
+
 export function searchProducts(query: string): Product[] {
-  const q = query.toLowerCase();
-  return products.filter(p =>
-    p.name.toLowerCase().includes(q) ||
-    p.brand.toLowerCase().includes(q) ||
-    p.category.toLowerCase().includes(q) ||
-    p.tags.some(t => t.includes(q))
-  );
+  const q = query.toLowerCase().trim();
+  if (!q) return [];
+
+  // Expand query words with synonyms
+  const rawWords = q.split(/\s+/);
+  const expandedWords = new Set<string>(rawWords);
+  for (const w of rawWords) {
+    (SYNONYMS[w] || []).forEach(s => expandedWords.add(s));
+  }
+  const words = Array.from(expandedWords);
+
+  // Score every product
+  const scored = products.map(p => ({ p, score: scoreProduct(p, words) }));
+
+  // Keep products with any score > 0, sorted best first
+  const matched = scored
+    .filter(x => x.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .map(x => x.p);
+
+  // If we have good exact/near matches (score ≥ 40), also pull in related
+  // products from the same category to pad results (like Amazon's "related" section)
+  if (matched.length > 0) {
+    const topScore = scored.filter(x => x.score > 0)[0]?.score ?? 0;
+    if (topScore >= 40) {
+      const topCategories = new Set(matched.slice(0, 3).map(p => p.category));
+      const related = products.filter(p =>
+        !matched.includes(p) &&
+        topCategories.has(p.category)
+      );
+      return [...matched, ...related];
+    }
+  }
+
+  return matched;
 }
 
 export function findBestMatch(query: string): Product | undefined {
