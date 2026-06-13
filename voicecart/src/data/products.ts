@@ -2,24 +2,36 @@ import { Product } from '@/types';
 
 // Using reliable placeholder service with product-specific colors
 function img(id: string): string {
-  // Use product emoji as the primary display (handled in the component)
-  // This URL is a fallback that won't break the layout if images fail
-  const colors: Record<string, string> = {
-    onion: 'C4A35A', tomato: 'FF4444', potato: 'C4A35A', banana: 'FFE135',
-    apple: 'FF0000', spinach: '2E7D32', capsicum: '4CAF50', milk: 'E3F2FD',
-    milk2: 'E3F2FD', curd: 'FAFAFA', paneer: 'FFFACD', butter: 'FFD700',
-    cream: 'FFF8E1', rice: 'FAFAFA', toordal: 'FFD700', flour: 'F5DEB3',
-    sugar: 'FAFAFA', oil: 'FFD700', salt: 'FAFAFA', maggi: 'FF6600',
-    lays: 'FFD700', parleg: '8B4513', haldiram: 'FF6347', coldcoffee: '6F4E37',
-    cocacola: 'FF0000', sprite: '00FF00', mangojuice: 'FFA500', greentea: '90EE90',
-    chai: '8B4513', shampoo: 'FF69B4', facewash: '00BFFF', soap: 'FFD700',
-    toothpaste: '00BFFF', detergent: '4169E1', floorcleaner: '00FF7F',
-    dishwash: 'FFD700', toiletcleaner: '00BFFF', turmeric: 'FF8C00',
-    chilli: 'DC143C', garammasala: '8B4513', chicken: 'FFB6C1',
-    eggs: 'FAFAFA', peanutbutter: 'D2691E', cornflakes: 'FFD700',
+  const queries: Record<string, string> = {
+    onion: 'Onion', tomato: 'Tomato', potato: 'Potato', banana: 'Banana',
+    apple: 'Apple', spinach: 'Spinach', capsicum: 'Capsicum Bell Pepper',
+    carrot: 'Carrot', cucumber: 'Cucumber', garlic: 'Garlic', ginger: 'Ginger',
+    lemon: 'Lemon', grapes: 'Grapes', orange: 'Orange',
+    milk: 'Milk Bottle', milk2: 'Milk', curd: 'Curd Yogurt', paneer: 'Paneer',
+    butter: 'Butter', cream: 'Fresh Cream', ghee: 'Ghee', yogurt: 'Yogurt',
+    cheeseSlice: 'Cheese Slices', eggs: 'Eggs',
+    rice: 'Rice Grains', toordal: 'Toor Dal', flour: 'Wheat Flour',
+    sugar: 'Sugar', oil: 'Cooking Oil', salt: 'Salt',
+    turmeric: 'Turmeric Powder', chilli: 'Red Chilli Powder',
+    garammasala: 'Garam Masala', chicken: 'Raw Chicken', moongdal: 'Moong Dal',
+    channadal: 'Chana Dal', mustardoil: 'Mustard Oil', poha: 'Poha Flattened Rice',
+    semolina: 'Sooji Rava', coriander: 'Coriander Powder', fish: 'Fish',
+    mutton: 'Mutton Meat', bread: 'Bread Loaf',
+    maggi: 'Maggi Noodles', lays: 'Lays Chips', parleg: 'Parle G Biscuits',
+    haldiram: 'Haldiram Namkeen', peanutbutter: 'Peanut Butter',
+    cornflakes: 'Corn Flakes', oreo: 'Oreo Biscuits', chips: 'Potato Chips',
+    coldcoffee: 'Cold Coffee', cocacola: 'Coca Cola', sprite: 'Sprite Soda',
+    mangojuice: 'Mango Juice', greentea: 'Green Tea', chai: 'Chai Tea',
+    coffee: 'Coffee', bournvita: 'Bournvita',
+    shampoo: 'Shampoo', facewash: 'Face Wash', soap: 'Bath Soap',
+    toothpaste: 'Toothpaste', handwash: 'Hand Wash', sanitizer: 'Hand Sanitizer',
+    detergent: 'Detergent Powder', floorcleaner: 'Floor Cleaner',
+    dishwash: 'Dishwash Liquid', toiletcleaner: 'Toilet Cleaner',
+    tissuepaper: 'Tissue Paper', mosquitorep: 'Mosquito Repellent Coil',
+    condensedmilk: 'Condensed Milk', panipuri: 'Pani Puri',
   };
-  const color = colors[id] || 'EEEEEE';
-  return `https://placehold.co/200x200/${color}/333333?text=${encodeURIComponent(id)}`;
+  const q = encodeURIComponent(queries[id] || id);
+  return `https://source.unsplash.com/200x200/?${q}`;
 }
 
 export const products: Product[] = [

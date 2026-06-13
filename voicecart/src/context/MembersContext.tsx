@@ -1,8 +1,10 @@
 'use client';
-import React, { createContext, useContext, useCallback } from 'react';
+import React, { createContext, useContext, useCallback, useMemo } from 'react';
 import { Member, Allergen, DietType } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
+import { useAuth } from './AuthContext';
 import { defaultMembers } from '@/data/members';
+import { syncMemberToAPI } from '@/lib/sync';
 
 const avatars = ['👨‍💻', '👩‍🍳', '👨‍🎓', '👩‍💼', '👨‍🏫', '👩‍🔧', '👨‍🎨', '👩‍🚀', '👨‍⚕️', '👩‍🌾'];
 let avatarIndex = 0;
@@ -26,7 +28,8 @@ const MembersContext = createContext<MembersContextType | null>(null);
 
 export function MembersProvider({ children }: { children: React.ReactNode }) {
   const [members, setMembers] = useLocalStorage<Member[]>('voicecart-members', defaultMembers);
-  const currentUserId = 'm1';
+  const { userId } = useAuth();
+  const currentUserId = useMemo(() => userId || 'guest', [userId]);
 
   const updateMember = useCallback((memberId: string, updates: Partial<Member>) => {
     setMembers(prev => prev.map(m => m.id === memberId ? { ...m, ...updates } : m));
@@ -50,6 +53,7 @@ export function MembersProvider({ children }: { children: React.ReactNode }) {
       isTyping: false,
     };
     setMembers(prev => [...prev, member]);
+    syncMemberToAPI(member).catch(() => {});
     return member;
   }, [members, setMembers]);
 

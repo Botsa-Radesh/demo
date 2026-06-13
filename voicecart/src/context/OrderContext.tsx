@@ -2,6 +2,7 @@
 import React, { createContext, useContext, useCallback, useMemo } from 'react';
 import { Order, CartItem, Member, SplitMode, MemberPayment, DeliverySlot } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
+import { syncOrderToAPI } from '@/lib/sync';
 
 interface OrderContextType {
   currentOrder: Order | null;
@@ -42,6 +43,7 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
     };
     setCurrentOrder(order);
     setHistory(prev => [order, ...prev]);
+    syncOrderToAPI(order).catch(() => {});
   }, [setCurrentOrder, setHistory]);
 
   const voteSlot = useCallback((slotId: string, memberId: string) => {

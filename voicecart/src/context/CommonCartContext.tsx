@@ -3,6 +3,7 @@ import React, { createContext, useContext, useCallback } from 'react';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { useCart } from './CartContext';
 import { SplitMode } from '@/types';
+import { cartApi } from '@/lib/api';
 
 interface PendingInvite {
   code: string;
@@ -13,14 +14,14 @@ interface PendingInvite {
 interface CommonCartContextType {
   pendingInvites: PendingInvite[];
   createCommonCart: (name: string, creatorId: string, creatorName: string, splitMode: SplitMode) => string;
-  joinCommonCartByCode: (code: string, userId: string) => boolean;
+  joinCommonCartByCode: (code: string, userId: string) => Promise<boolean>;
   addInvite: (code: string, cartName: string, creatorName: string) => void;
 }
 
 const CommonCartContext = createContext<CommonCartContextType | null>(null);
 
 export function CommonCartProvider({ children }: { children: React.ReactNode }) {
-  const { createCommonCart: createCart, joinCommonCart, commonCarts } = useCart();
+  const { createCommonCart: createCart, joinCommonCart, joinCommonCartViaApi, commonCarts } = useCart();
   const [pendingInvites, setPendingInvites] = useLocalStorage<PendingInvite[]>('voicecart-pending-invites', []);
 
   const createCommonCartHandler = useCallback((name: string, creatorId: string, creatorName: string, splitMode: SplitMode): string => {
@@ -28,16 +29,23 @@ export function CommonCartProvider({ children }: { children: React.ReactNode }) 
     return cart.code;
   }, [createCart]);
 
-  const joinCommonCartByCode = useCallback((code: string, userId: string): boolean => {
+  const joinCommonCartByCode = useCallback(async (code: string, userId: string): Promise<boolean> => {
+    // Try local first
     const existing = commonCarts.find(c => c.code.toUpperCase() === code.toUpperCase());
     if (existing && existing.memberIds.includes(userId)) return true;
-    const result = joinCommonCart(code, userId);
-    if (result) {
+    const localResult = joinCommonCart(code, userId);
+    if (localResult) {
+      setPendingInvites(prev => prev.filter(i => i.code.toUpperCase() !== code.toUpperCase()));
+      return true;
+    }
+    // Fall back to API (cross-user join via DynamoDB)
+    const apiResult = await joinCommonCartViaApi(code, userId);
+    if (apiResult) {
       setPendingInvites(prev => prev.filter(i => i.code.toUpperCase() !== code.toUpperCase()));
       return true;
     }
     return false;
-  }, [joinCommonCart, commonCarts, setPendingInvites]);
+  }, [joinCommonCart, joinCommonCartViaApi, commonCarts, setPendingInvites]);
 
   const addInvite = useCallback((code: string, cartName: string, creatorName: string) => {
     setPendingInvites(prev => {

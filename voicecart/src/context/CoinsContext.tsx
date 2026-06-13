@@ -2,7 +2,9 @@
 import React, { createContext, useContext, useCallback, useMemo } from 'react';
 import { CoinTransaction } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
+import { useAuth } from './AuthContext';
 import { getNextMilestone, getRedeemOptions } from '@/utils/coinsCalculator';
+import { syncCoinsToAPI } from '@/lib/sync';
 
 interface CoinsContextType {
   balance: number;
@@ -21,6 +23,7 @@ export function CoinsProvider({ children }: { children: React.ReactNode }) {
   const [balance, setBalance] = useLocalStorage<number>('voicecart-coins', 1247);
   const [transactions, setTransactions] = useLocalStorage<CoinTransaction[]>('voicecart-transactions', []);
   const [streak, setStreak] = useLocalStorage<number>('voicecart-streak', 3);
+  const { userId } = useAuth();
 
   const addCoins = useCallback((amount: number, reason: string) => {
     setBalance(prev => prev + amount);
@@ -31,7 +34,8 @@ export function CoinsProvider({ children }: { children: React.ReactNode }) {
       reason,
       date: new Date().toISOString(),
     }, ...prev]);
-  }, [setBalance, setTransactions]);
+    if (userId) syncCoinsToAPI(userId, amount, reason).catch(() => {});
+  }, [setBalance, setTransactions, userId]);
 
   const redeemCoins = useCallback((cost: number, label: string): boolean => {
     if (balance < cost) return false;
@@ -43,8 +47,9 @@ export function CoinsProvider({ children }: { children: React.ReactNode }) {
       reason: label,
       date: new Date().toISOString(),
     }, ...prev]);
+    if (userId) syncCoinsToAPI(userId, -cost, `Redeemed: ${label}`).catch(() => {});
     return true;
-  }, [balance, setBalance, setTransactions]);
+  }, [balance, setBalance, setTransactions, userId]);
 
   const incrementStreak = useCallback(() => {
     setStreak(prev => prev + 1);

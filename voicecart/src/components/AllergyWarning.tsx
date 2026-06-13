@@ -2,6 +2,7 @@
 import React from 'react';
 import { AllergyWarning as AllergyWarningType } from '@/utils/allergyChecker';
 import { useCart } from '@/context/CartContext';
+import { useMembers } from '@/context/MembersContext';
 import { useToast } from './NotificationToast';
 
 interface Props {
@@ -11,11 +12,12 @@ interface Props {
 
 export function AllergyWarningModal({ warning, onClose }: Props) {
   const { addItem, removeItem } = useCart();
+  const { currentUserId } = useMembers();
   const { showToast } = useToast();
 
   const handleSwap = () => {
     if (warning.suggestedSwap) {
-      addItem(warning.suggestedSwap, 1, 'm1');
+      addItem(warning.suggestedSwap, 1, currentUserId);
       removeItem(warning.productId);
       showToast(`Swapped ${warning.productName} → ${warning.suggestedSwap.name}`, 'success');
       onClose();
