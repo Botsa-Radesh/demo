@@ -160,7 +160,7 @@ export default function SplitPaymentPage() {
                 const total = memberItems.reduce((s, i) => s + i.product.price * i.quantity, 0);
                 return (
                   <div key={item.addedBy} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 13 }}>
-                    <span style={{ color: 'var(--amazon-text-secondary)' }}>{member?.avatar || '👤'} {member?.name || item.addedBy}</span>
+                    <span style={{ color: 'var(--amazon-text-secondary)' }}>{member?.avatar || '👤'} {member?.name || (item.addedBy === currentUserId ? 'You' : 'Guest')}</span>
                     <span>₹{total}</span>
                   </div>
                 );
@@ -184,7 +184,7 @@ export default function SplitPaymentPage() {
               const total = memberItems.reduce((s, i) => s + i.product.price * i.quantity, 0);
               splitEntries.push({
                 id: item.addedBy,
-                name: member?.name || item.addedBy,
+                name: member?.name || 'Guest',
                 avatar: member?.avatar || '👤',
                 total,
                 count: memberItems.length,
