@@ -12,6 +12,7 @@ import { MemberAvatar } from '@/components/MemberAvatar';
 import { RecipeModal } from '@/components/RecipeModal';
 import { AllergyWarningModal } from '@/components/AllergyWarning';
 import { BudgetBar } from '@/components/BudgetBar';
+import { AIStatusBadge } from '@/components/AIStatusBadge';
 import { useVoice } from '@/hooks/useVoice';
 import { useSpeechSynthesis } from '@/hooks/useSpeechSynthesis';
 import { parseVoiceCommand } from '@/utils/voiceParser';
@@ -53,6 +54,7 @@ function VoiceCartPageInner() {
   const [budgetAmount, setBudgetAmount] = useState(500);
   const [highlightMember, setHighlightMember] = useState<string | null>(null);
   const [showCartSelector, setShowCartSelector] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [editingCartName, setEditingCartName] = useState(false);
   const [cartNameInput, setCartNameInput] = useState('');
   const [showCodeCopied, setShowCodeCopied] = useState(false);
@@ -382,34 +384,35 @@ function VoiceCartPageInner() {
 
   return (
     <div className="page-content" style={{ paddingTop: 16, paddingBottom: 80 }}>
-      {/* Cart Selector Prominent */}
+      {/* Compact Cart Header */}
       <div className="amazon-card" style={{ marginBottom: 16, background: activeCart ? '#fff' : '#fff8e1', border: activeCart ? '' : '2px solid #f0c14b' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button className="back-btn" onClick={() => router.push('/')}>←</button>
+            <button className="back-btn" onClick={() => router.push('/')} aria-label="Go back to home">←</button>
             <div style={{ position: 'relative', flex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ fontSize: 11, color: 'var(--amazon-text-muted)', fontWeight: 500 }}>Cart:</span>
                 <h1
                   style={{ fontSize: 16, fontWeight: 700, color: 'var(--amazon-text)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
                   onClick={() => setShowCartSelector(!showCartSelector)}
+                  aria-expanded={showCartSelector}
+                  aria-haspopup="listbox"
+                  role="button"
                 >
                   {activeCart?.name || 'Select a cart...'}
                   <span style={{ fontSize: 10, color: 'var(--amazon-text-muted)' }}>▼</span>
                 </h1>
               </div>
               {showCartSelector && (
-                <div style={{
+                <div role="listbox" aria-label="Cart selection" style={{
                   position: 'absolute', top: '100%', left: 0, zIndex: 100,
                   background: '#fff', border: '1px solid var(--amazon-border)',
                   borderRadius: 8, boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
                   minWidth: 260, padding: 8, marginTop: 4,
                 }}>
-                  <p style={{ fontSize: 11, color: 'var(--amazon-text-muted)', padding: '4px 8px', marginBottom: 4 }}>
-                    Select a cart to add items
-                  </p>
                   {personalCartId && carts[personalCartId] && (
                     <div
+                      role="option"
+                      aria-selected={activeCartId === personalCartId}
                       style={{
                         padding: '10px 12px', borderRadius: 6, cursor: 'pointer',
                         background: activeCartId === personalCartId ? '#fef4e8' : 'transparent',
@@ -422,12 +425,14 @@ function VoiceCartPageInner() {
                         <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--amazon-text)' }}>{carts[personalCartId].name}</p>
                         <p style={{ fontSize: 11, color: 'var(--amazon-text-muted)' }}>Personal · {carts[personalCartId].items.length} items</p>
                       </div>
-                      {activeCartId === personalCartId && <span style={{ marginLeft: 'auto', fontSize: 11, color: '#b12704' }}>✓ Active</span>}
+                      {activeCartId === personalCartId && <span style={{ marginLeft: 'auto', fontSize: 11, color: '#b12704' }}>✓</span>}
                     </div>
                   )}
                   {commonCarts.map(cc => (
                     <div
                       key={cc.id}
+                      role="option"
+                      aria-selected={activeCartId === cc.id}
                       style={{
                         padding: '10px 12px', borderRadius: 6, cursor: 'pointer',
                         background: activeCartId === cc.id ? '#fef4e8' : 'transparent',
@@ -441,7 +446,7 @@ function VoiceCartPageInner() {
                         <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--amazon-text)' }}>{cc.name}</p>
                         <p style={{ fontSize: 11, color: 'var(--amazon-text-muted)' }}>Common · {cc.items.length} items</p>
                       </div>
-                      {activeCartId === cc.id && <span style={{ marginLeft: 'auto', fontSize: 11, color: '#b12704' }}>✓ Active</span>}
+                      {activeCartId === cc.id && <span style={{ marginLeft: 'auto', fontSize: 11, color: '#b12704' }}>✓</span>}
                     </div>
                   ))}
                   <div style={{ borderTop: '1px solid var(--amazon-border-light)', marginTop: 4, paddingTop: 4 }}>
@@ -454,70 +459,83 @@ function VoiceCartPageInner() {
               )}
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 4 }}>
+          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+            {activeCart && (
+              <button
+                className="btn btn-ghost btn-sm"
+                onClick={() => setShowSettings(!showSettings)}
+                aria-label="Cart settings"
+                aria-expanded={showSettings}
+                style={{ fontSize: 14, padding: '4px 8px' }}
+              >
+                ⚙️
+              </button>
+            )}
             {activeCart ? members.filter(m => activeCart.memberIds.includes(m.id)).map(m => <MemberAvatar key={m.id} member={m} size={28} />) : null}
           </div>
         </div>
 
+        {/* Summary Row */}
         {activeCart && (
-          <>
-            {/* Cart Code Row */}
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8,
-              padding: '6px 10px', background: '#fef4e8', borderRadius: 6,
-            }}>
-              <span style={{ fontSize: 11, color: 'var(--amazon-text-secondary)', fontWeight: 500 }}>
-                {activeCart.type === 'personal' ? 'Personal' : 'Common'} Cart Code:
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+              <span style={{ fontSize: 12, color: 'var(--amazon-text-secondary)' }}>
+                {totalItems} items · {activeCart.splitMode} split
               </span>
-              <code style={{
-                fontSize: 14, fontWeight: 700, letterSpacing: 2, color: 'var(--amazon-orange)',
-                fontFamily: 'monospace',
-              }}>
-                {activeCart.code}
-              </code>
-              <button className="btn btn-ghost btn-sm" style={{ padding: '2px 8px', fontSize: 11, marginLeft: 'auto' }}
-                onClick={handleCopyCode}>
-                {showCodeCopied ? '✅ Copied!' : '📋 Copy'}
-              </button>
+              <AIStatusBadge />
             </div>
-
-            {/* Split Mode Selector */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-              <span style={{ fontSize: 12, color: 'var(--amazon-text-secondary)' }}>Split mode:</span>
-              <div style={{ display: 'flex', gap: 4 }}>
-                {splitModeOptions.map(mode => (
-                  <button
-                    key={mode}
-                    className={`chip ${activeCart?.splitMode === mode ? 'active' : ''}`}
-                    style={{ fontSize: 11, padding: '2px 8px' }}
-                    onClick={() => activeCart && updateCartSplitMode(activeCart.id, mode)}
-                  >
-                    {mode === 'family' ? '👨‍👩‍👧' : mode === 'auto' ? '🧾' : mode === 'equal' ? '➗' : '✏️'}
-                    {' '}{mode.charAt(0).toUpperCase() + mode.slice(1)}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: 13, color: 'var(--amazon-text-secondary)' }}>
-                {totalItems} items
-              </span>
-              <span style={{ fontSize: 20, fontWeight: 700, color: 'var(--amazon-price)' }}>
-                ₹{totalPrice}
-              </span>
-            </div>
-          </>
+            <span style={{ fontSize: 20, fontWeight: 700, color: 'var(--amazon-price)' }}>
+              ₹{totalPrice}
+            </span>
+          </div>
         )}
 
         {!activeCart && (
-          <div style={{ textAlign: 'center', padding: '12px 0' }}>
-            <p style={{ fontSize: 13, color: 'var(--amazon-text-secondary)', marginBottom: 8 }}>
+          <div style={{ textAlign: 'center', padding: '8px 0' }}>
+            <p style={{ fontSize: 13, color: 'var(--amazon-text-secondary)' }}>
               👆 Select a cart above to start adding items
             </p>
           </div>
         )}
       </div>
+
+      {/* Collapsible Settings Panel */}
+      {showSettings && activeCart && (
+        <div className="voice-settings-drawer" aria-label="Cart settings panel">
+          {/* Cart Code */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, padding: '8px 12px', background: '#fef4e8', borderRadius: 6 }}>
+            <span style={{ fontSize: 11, color: 'var(--amazon-text-secondary)', fontWeight: 500 }}>
+              Cart Code:
+            </span>
+            <code style={{ fontSize: 14, fontWeight: 700, letterSpacing: 2, color: 'var(--amazon-orange)', fontFamily: 'monospace' }}>
+              {activeCart.code}
+            </code>
+            <button className="btn btn-ghost btn-sm" style={{ padding: '2px 8px', fontSize: 11, marginLeft: 'auto' }}
+              onClick={handleCopyCode} aria-label="Copy cart code">
+              {showCodeCopied ? '✅ Copied!' : '📋 Copy'}
+            </button>
+          </div>
+
+          {/* Split Mode */}
+          <div style={{ marginBottom: 8 }}>
+            <span style={{ fontSize: 12, color: 'var(--amazon-text-secondary)', display: 'block', marginBottom: 6 }}>Split mode:</span>
+            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+              {splitModeOptions.map(mode => (
+                <button
+                  key={mode}
+                  className={`chip ${activeCart?.splitMode === mode ? 'active' : ''}`}
+                  style={{ fontSize: 11, padding: '4px 10px' }}
+                  onClick={() => activeCart && updateCartSplitMode(activeCart.id, mode)}
+                  aria-pressed={activeCart?.splitMode === mode}
+                >
+                  {mode === 'family' ? '👨‍👩‍👧' : mode === 'auto' ? '🧾' : mode === 'equal' ? '➗' : '✏️'}
+                  {' '}{mode.charAt(0).toUpperCase() + mode.slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Pending Invites */}
       {pendingInvites.length > 0 && (
@@ -549,8 +567,8 @@ function VoiceCartPageInner() {
         </div>
       )}
 
-      {/* Voice Section */}
-      <div className="amazon-card" style={{ textAlign: 'center', padding: 20, marginBottom: 16 }}>
+      {/* Voice Section - Clean & Focused */}
+      <div className="amazon-card" style={{ textAlign: 'center', padding: '24px 20px', marginBottom: 16 }}>
         <MicrophoneButton status={micStatus} onClick={handleMicToggle} />
         <VoiceTranscript
           transcript={transcript}
@@ -559,85 +577,71 @@ function VoiceCartPageInner() {
           isTyping={isAiTyping}
         />
 
-        {/* Fallback Text Input */}
-        <form onSubmit={handleTextSubmit} style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+        {/* Text Input */}
+        <form onSubmit={handleTextSubmit} style={{ display: 'flex', gap: 8, marginTop: 12 }}>
           <input
             ref={inputRef}
-            placeholder='e.g. "add 2kg rice, 1 packet pasta, 3 apples"'
-            style={{ flex: 1, fontSize: 13, padding: '8px 12px' }}
+            placeholder='Try: "add 2kg rice, milk, and 3 apples"'
+            aria-label="Type a voice command"
+            style={{ flex: 1, fontSize: 13, padding: '10px 14px' }}
           />
-          <button type="submit" className="btn btn-primary btn-sm">Send</button>
+          <button type="submit" className="btn btn-primary btn-sm" aria-label="Send command">Send</button>
         </form>
 
-        {/* Suggestion Chips */}
+        {/* Quick Actions - compact row */}
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'center', marginTop: 12 }}>
           <button className={`chip ${mode === 'recipe' ? 'active' : ''}`}
             onClick={() => {
               if (selectedRecipe) { setMode('recipe'); return; }
               setSelectedRecipe(recipes[0]);
               setMode('recipe');
-            }}>🍳 Recipe Mode</button>
+            }}>🍳 Recipe</button>
           <button className={`chip ${budgetMode ? 'active' : ''}`}
             onClick={() => {
               setBudgetMode(!budgetMode);
               setMode(budgetMode ? 'normal' : 'budget');
               if (!budgetMode) handleBudgetCart(budgetAmount);
-            }}>💰 Budget Mode</button>
-          <button className="chip"
-            onClick={() => router.push('/dashboard')}>📋 Templates</button>
-          <button className="chip"
-            onClick={() => {
-              showToast('Essentials added!', 'success');
-            }}>📅 Reorder</button>
+            }}>💰 Budget</button>
           <button className={`chip ${cartAnalysis ? 'active' : ''}`}
             onClick={handleAnalyzeCart} disabled={!activeCart || activeCart.items.length === 0 || isAnalyzing}>
-            {isAnalyzing ? '⏳' : '🤖'} AI Analyze
+            {isAnalyzing ? '⏳' : '🤖'} Analyze
           </button>
+          <button className="chip" onClick={() => router.push('/dashboard')}>📋 Templates</button>
         </div>
 
-        {/* Cart Analysis Results */}
+        {/* AI Cart Analysis */}
         {cartAnalysis && (
-          <div className="animate-fadeIn" style={{ marginTop: 12, padding: 12, background: '#f0f8ff', borderRadius: 8, border: '1px solid #b7d4f0' }}>
-            <p style={{ fontSize: 13, fontWeight: 600, color: '#1a73e8', marginBottom: 6 }}>🤖 AI Cart Analysis</p>
-            <p style={{ fontSize: 12, color: 'var(--amazon-text)', marginBottom: 4 }}>{cartAnalysis.summary}</p>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', fontSize: 11, color: 'var(--amazon-text-secondary)' }}>
+          <div className="animate-fadeIn" style={{ marginTop: 12, padding: 14, background: '#f0f8ff', borderRadius: 8, border: '1px solid #b7d4f0', textAlign: 'left' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <p style={{ fontSize: 13, fontWeight: 600, color: '#1a73e8' }}>🤖 AI Analysis</p>
+              <button className="btn btn-ghost btn-sm" style={{ fontSize: 10, padding: '2px 8px' }}
+                onClick={() => setCartAnalysis(null)} aria-label="Dismiss analysis">✕</button>
+            </div>
+            <p style={{ fontSize: 12, color: 'var(--amazon-text)', marginBottom: 6 }}>{cartAnalysis.summary}</p>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', fontSize: 11, marginBottom: 4 }}>
               <span style={{ background: cartAnalysis.balanced ? '#e6f7e6' : '#fff3cd', padding: '2px 6px', borderRadius: 4 }}>
                 {cartAnalysis.balanced ? '✅ Balanced' : '⚠️ Needs variety'}
               </span>
               {cartAnalysis.duplicates && (
-                <span style={{ background: '#fff3cd', padding: '2px 6px', borderRadius: 4 }}>📋 Has duplicates</span>
+                <span style={{ background: '#fff3cd', padding: '2px 6px', borderRadius: 4 }}>📋 Duplicates</span>
               )}
             </div>
-            <p style={{ fontSize: 11, color: 'var(--amazon-text-secondary)', marginTop: 4 }}>💡 {cartAnalysis.tip}</p>
-            <p style={{ fontSize: 11, color: 'var(--amazon-text-muted)', marginTop: 2 }}>🔔 {cartAnalysis.missing}</p>
-            <button className="btn btn-ghost btn-sm" style={{ fontSize: 10, marginTop: 4, padding: '2px 8px' }}
-              onClick={() => setCartAnalysis(null)}>Dismiss</button>
-          </div>
-        )}
-
-        {/* Recent Commands */}
-        {recentCommands.length > 0 && (
-          <div style={{ marginTop: 12, textAlign: 'left' }}>
-            <p style={{ fontSize: 11, color: 'var(--amazon-text-muted)', marginBottom: 4 }}>Recent commands:</p>
-            {recentCommands.map((cmd, i) => (
-              <p key={i} style={{ fontSize: 12, color: 'var(--amazon-text-secondary)', padding: '2px 0' }}>
-                🎙️ {cmd}
-              </p>
-            ))}
+            <p style={{ fontSize: 11, color: 'var(--amazon-text-secondary)' }}>💡 {cartAnalysis.tip}</p>
+            {cartAnalysis.missing && (
+              <p style={{ fontSize: 11, color: 'var(--amazon-text-muted)', marginTop: 2 }}>🔔 Missing: {cartAnalysis.missing}</p>
+            )}
           </div>
         )}
       </div>
 
-      {/* Cart Section */}
+      {/* Cart Items Section */}
       <div ref={cartRef}>
         {!activeCart || activeCart.items.length === 0 ? (
-          <div className="amazon-card" style={{ textAlign: 'center', padding: 32 }}>
-            <span style={{ fontSize: 48 }}>🛒</span>
-            <p style={{ fontSize: 14, color: 'var(--amazon-text-secondary)', marginTop: 8 }}>
-              Your cart is empty. Tap the mic to start!
-            </p>
-            <p style={{ fontSize: 12, color: 'var(--amazon-text-muted)', marginTop: 4 }}>
-              Try: "add 2kg rice, 1 packet pasta and 3 apples"
+          <div className="amazon-card empty-state">
+            <div className="empty-state-icon">🛒</div>
+            <p className="empty-state-title">Your cart is empty</p>
+            <p className="empty-state-desc">
+              Tap the microphone and say something like &ldquo;add 2kg rice, milk, and 3 apples&rdquo; to get started.
             </p>
           </div>
         ) : (

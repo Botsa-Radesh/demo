@@ -97,7 +97,7 @@ export function Header() {
               <div className="search-results">
                 {results.map(p => (
                   <div key={p.id} className="search-result-item" onClick={() => handleResultClick(p)}>
-                    <img src={p.imageUrl} alt={p.name} style={{ width: 32, height: 32, borderRadius: 4, objectFit: 'cover' }} />
+                    <span className="result-icon">{p.emoji}</span>
                     <div className="result-info">
                       <div className="result-name">{p.name}</div>
                       <div className="result-price">₹{p.price}</div>
@@ -139,6 +139,21 @@ export function Header() {
           <span className="header-cart-text desktop-only">Cart</span>
           {totalItems > 0 && <span className="header-cart-badge">{totalItems}</span>}
         </Link>
+
+        {/* Dark Mode Toggle */}
+        <button
+          className="header-link"
+          onClick={() => {
+            const html = document.documentElement;
+            const current = html.getAttribute('data-theme');
+            html.setAttribute('data-theme', current === 'dark' ? 'light' : 'dark');
+            localStorage.setItem('voicecart-theme', current === 'dark' ? 'light' : 'dark');
+          }}
+          aria-label="Toggle dark mode"
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#fff', padding: '4px 8px' }}
+        >
+          <span style={{ fontSize: 18 }}>🌙</span>
+        </button>
       </div>
     </header>
   );

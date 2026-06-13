@@ -136,13 +136,7 @@ export default function HomePage() {
                     onClick={() => router.push(`/voice-cart?add=${product.id}`)}
                     style={{ overflow: 'hidden' }}
                   >
-                    <img
-                      src={product.imageUrl}
-                      alt={product.name}
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                      loading="lazy"
-                      onError={(e) => { const img = e.target as HTMLImageElement; img.style.display = 'none'; const parent = img.parentElement; if (parent) { parent.textContent = product.emoji; } }}
-                    />
+                    <span style={{ fontSize: 56 }}>{product.emoji}</span>
                   </div>
                   <div
                     className="product-title"
