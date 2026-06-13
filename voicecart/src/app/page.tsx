@@ -45,8 +45,8 @@ export default function HomePage() {
   }, []);
 
   const filteredProducts = activeCategory === 'all'
-    ? products
-    : products.filter(p => p.category === activeCategory);
+    ? products.filter(p => p.trending)
+    : products.filter(p => p.category === activeCategory && p.trending);
 
   const handleAddToCart = (product: Product) => {
     if (!activeCartId) {
@@ -127,7 +127,7 @@ export default function HomePage() {
           </div>
 
           <div className="product-grid">
-            {filteredProducts.slice(0, 12).map(product => {
+            {filteredProducts.slice(0, 24).map(product => {
               const rating = productRatings[product.id];
               return (
                 <div key={product.id} className="product-card animate-fadeIn">

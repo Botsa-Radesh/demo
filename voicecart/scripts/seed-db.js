@@ -1,6 +1,9 @@
 const { DynamoDBClient, CreateTableCommand, ListTablesCommand } = require('@aws-sdk/client-dynamodb');
 
-require('dotenv').config({ path: require('path').join(__dirname, '..', '.env.local') });
+const envPath = require('path').join(__dirname, '..', '.env');
+const envLocalPath = require('path').join(__dirname, '..', '.env.local');
+require('dotenv').config({ path: envPath });
+require('dotenv').config({ path: envLocalPath });
 
 const TABLE_NAME = process.env.DYNAMODB_TABLE || 'VoiceCart';
 

@@ -24,6 +24,9 @@ import { searchProducts, products } from '@/data/products';
 import { recipes, getRecipeById } from '@/data/recipes';
 import { Recipe, Cart, SplitMode, CartItem } from '@/types';
 import { AllergyWarning as AllergyWarningType } from '@/utils/allergyChecker';
+import { predictReorder, ReorderSummary } from '@/utils/reorderPredictor';
+import { ReorderPopup } from '@/components/ReorderPopup';
+import { useOrder } from '@/context/OrderContext';
 
 type PageMode = 'voice' | 'recipe' | 'budget' | 'normal';
 
@@ -42,6 +45,7 @@ function VoiceCartPageInner() {
   const { showToast } = useToast();
   const { isSupported, isListening, transcript, interimTranscript, startListening, stopListening } = useVoice();
   const { speak } = useSpeechSynthesis();
+  const { history } = useOrder();
 
   const [micStatus, setMicStatus] = useState<'idle' | 'listening' | 'processing' | 'speaking'>('idle');
   const [aiResponse, setAiResponse] = useState('');
@@ -60,6 +64,8 @@ function VoiceCartPageInner() {
   const [showCodeCopied, setShowCodeCopied] = useState(false);
   const [cartAnalysis, setCartAnalysis] = useState<CartAnalysis | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [reorderSummary, setReorderSummary] = useState<ReorderSummary | null>(null);
+  const [dismissedReorder, setDismissedReorder] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const cartRef = useRef<HTMLDivElement>(null);
 
@@ -81,6 +87,15 @@ function VoiceCartPageInner() {
       handleBudgetCart(Number(budget));
     }
   }, [searchParams]);
+
+  // Reorder prediction based on history
+  useEffect(() => {
+    if (dismissedReorder || history.length < 2) return;
+    const result = predictReorder(history, products);
+    if (result.predictions.length > 0) {
+      setReorderSummary(result);
+    }
+  }, [history, dismissedReorder]);
 
   const handleBatchAdd = useCallback(async (productsToAdd: { productId: string; quantity: number }[]) => {
     for (const { productId, quantity } of productsToAdd) {
@@ -718,6 +733,31 @@ function VoiceCartPageInner() {
           </>
         )}
       </div>
+
+      {/* Reorder Prediction Popup */}
+      {reorderSummary && reorderSummary.predictions.length > 0 && !dismissedReorder && (
+        <ReorderPopup
+          predictions={reorderSummary.predictions}
+          onDismiss={() => setDismissedReorder(true)}
+          onAddToCart={(productId, qty) => {
+            const product = products.find(p => p.id === productId);
+            if (product) {
+              addItem(product, qty, currentUserId, false);
+              showToast(`Added ${qty} ${product.name}`, 'success');
+              speak(`Added ${qty} ${product.name} to cart!`);
+            }
+          }}
+          onAddAll={() => {
+            for (const p of reorderSummary.predictions) {
+              const product = products.find(x => x.id === p.product.id);
+              if (product) addItem(product, p.suggestedQuantity, currentUserId, false);
+            }
+            setDismissedReorder(true);
+            showToast(`Added ${reorderSummary.totalItems} items to cart!`, 'success');
+            speak(`Added all ${reorderSummary.predictions.length} reorder items to cart!`);
+          }}
+        />
+      )}
 
       {/* Recipe Modal */}
       {selectedRecipe && mode === 'recipe' && (

@@ -42,14 +42,14 @@ export function Header() {
     e.preventDefault();
     if (query.trim()) {
       setShowResults(false);
-      router.push(`/voice-cart?search=${encodeURIComponent(query.trim())}`);
+      router.push(`/search?q=${encodeURIComponent(query.trim())}`);
     }
   };
 
   const handleResultClick = (product: Product) => {
     setShowResults(false);
     setQuery('');
-    router.push(`/voice-cart?add=${product.id}`);
+    router.push(`/search?q=${encodeURIComponent(product.name)}`);
   };
 
   const handleLogout = () => {
