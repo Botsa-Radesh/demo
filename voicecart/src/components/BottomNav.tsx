@@ -7,7 +7,8 @@ import { useCart } from '@/context/CartContext';
 const navItems = [
   { href: '/', label: 'Home', icon: '🏠' },
   { href: '/voice-cart', label: 'Cart', icon: '🛒' },
-  { href: '/common-cart', label: 'Group', icon: '👥' },
+  { href: '/carts', label: 'Carts', icon: '🛍️' },
+  { href: '/splits', label: 'Splits', icon: '💰' },
   { href: '/dashboard', label: 'Coins', icon: '🪙' },
   { href: '/members', label: 'Profile', icon: '👤' },
 ];

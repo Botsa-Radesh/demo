@@ -1,5 +1,5 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useOrder } from '@/context/OrderContext';
 import { useMembers } from '@/context/MembersContext';
@@ -10,14 +10,26 @@ import { Confetti } from '@/components/Confetti';
 
 export default function OrderConfirmationPage() {
   const router = useRouter();
-  const { currentOrder } = useOrder();
-  const { members, getMemberById } = useMembers();
+  const { currentOrder, splitRequests } = useOrder();
+  const { members, currentUserId, getMemberById } = useMembers();
   const { balance } = useCoins();
   const { saveTemplate } = useCart();
   const { showToast } = useToast();
   const [showConfetti, setShowConfetti] = useState(true);
   const [templateName, setTemplateName] = useState('');
   const [showSaveTemplate, setShowSaveTemplate] = useState(false);
+  const [showSplitPopup, setShowSplitPopup] = useState(false);
+
+  const orderSplits = currentOrder
+    ? splitRequests.filter(s => s.orderId === currentOrder.id && s.status === 'pending')
+    : [];
+
+  useEffect(() => {
+    if (orderSplits.length > 0) {
+      const timer = setTimeout(() => setShowSplitPopup(true), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [orderSplits.length]);
 
   React.useEffect(() => {
     const timer = setTimeout(() => setShowConfetti(false), 3000);
@@ -165,6 +177,46 @@ export default function OrderConfirmationPage() {
             style={{ flex: 1 }}
           />
           <button className="btn btn-primary" onClick={handleSaveTemplate}>Save</button>
+        </div>
+      )}
+
+      {/* Split Reminder Popup */}
+      {showSplitPopup && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 24 }}>
+          <div className="amazon-card" style={{ maxWidth: 400, width: '100%', padding: 24, animation: 'slideUp 0.3s ease' }}>
+            <div style={{ textAlign: 'center', marginBottom: 16 }}>
+              <span style={{ fontSize: 48 }}>💰</span>
+              <h2 style={{ fontSize: 20, fontWeight: 700, margin: '12px 0 4px', color: 'var(--amazon-text)' }}>Split Reminder</h2>
+              <p style={{ fontSize: 13, color: 'var(--amazon-text-secondary)' }}>The following members need to pay their share:</p>
+            </div>
+            {orderSplits.map(s => {
+              const member = getMemberById(s.fromMemberId);
+              return (
+                <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid var(--amazon-border-light)' }}>
+                  <div>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--amazon-text)' }}>
+                      {member?.avatar} {member?.name || s.fromName}
+                    </p>
+                    <p style={{ fontSize: 11, color: 'var(--amazon-text-muted)' }}>
+                      {s.items.length} items · Auto split
+                    </p>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <p style={{ fontSize: 18, fontWeight: 700, color: 'var(--amazon-price)' }}>₹{s.amount}</p>
+                    <span className="badge badge-warning" style={{ fontSize: 10 }}>Pending</span>
+                  </div>
+                </div>
+              );
+            })}
+            <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+              <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => router.push('/splits')}>
+                📋 View Splits
+              </button>
+              <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setShowSplitPopup(false)}>
+                Dismiss
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

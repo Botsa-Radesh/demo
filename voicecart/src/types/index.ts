@@ -140,4 +140,21 @@ export interface CoinTransaction {
   date: string;
 }
 
+export interface SplitRequest {
+  id: string;
+  orderId: string;
+  fromMemberId: string;
+  toMemberId: string;
+  fromName: string;
+  toName: string;
+  amount: number;
+  splitMode: SplitMode;
+  items: { productId: string; name: string; quantity: number; price: number }[];
+  status: 'pending' | 'paid';
+  createdAt: string;
+  paidAt?: string;
+  orderTotal: number;
+  deliverySlot: string;
+}
+
 export type { Category as CategoryType, Allergen as AllergenType, DietType as DietTypeEnum };

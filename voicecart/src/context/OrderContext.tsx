@@ -1,8 +1,12 @@
 'use client';
 import React, { createContext, useContext, useCallback, useMemo } from 'react';
-import { Order, CartItem, Member, SplitMode, MemberPayment, DeliverySlot } from '@/types';
+import { Order, CartItem, Member, SplitMode, MemberPayment, DeliverySlot, SplitRequest } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { syncOrderToAPI } from '@/lib/sync';
+
+function generateSplitId(): string {
+  return `spr-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+}
 
 interface OrderContextType {
   currentOrder: Order | null;
@@ -11,6 +15,11 @@ interface OrderContextType {
   deliverySlots: DeliverySlot[];
   voteSlot: (slotId: string, memberId: string) => void;
   clearCurrentOrder: () => void;
+  splitRequests: SplitRequest[];
+  addSplitRequest: (req: Omit<SplitRequest, 'id' | 'createdAt'>) => void;
+  markSplitPaid: (splitId: string) => void;
+  getPendingSplitsForMember: (memberId: string) => SplitRequest[];
+  getSentSplitsForMember: (memberId: string) => SplitRequest[];
 }
 
 const defaultSlots: DeliverySlot[] = [
@@ -26,6 +35,7 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
   const [currentOrder, setCurrentOrder] = useLocalStorage<Order | null>('voicecart-current-order', null);
   const [history, setHistory] = useLocalStorage<Order[]>('voicecart-order-history', []);
   const [deliverySlots, setDeliverySlots] = useLocalStorage<DeliverySlot[]>('voicecart-slots', defaultSlots);
+  const [splitRequests, setSplitRequests] = useLocalStorage<SplitRequest[]>('voicecart-split-requests', []);
 
   const placeOrder = useCallback((
     items: CartItem[], total: number, splitMode: SplitMode, payments: MemberPayment[], slot: string, coinsEarned: number
@@ -58,13 +68,39 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
     setCurrentOrder(null);
   }, [setCurrentOrder]);
 
+  const addSplitRequest = useCallback((req: Omit<SplitRequest, 'id' | 'createdAt'>) => {
+    const split: SplitRequest = {
+      ...req,
+      id: generateSplitId(),
+      createdAt: new Date().toISOString(),
+    };
+    setSplitRequests(prev => [split, ...prev]);
+  }, [setSplitRequests]);
+
+  const markSplitPaid = useCallback((splitId: string) => {
+    setSplitRequests(prev => prev.map(s =>
+      s.id === splitId ? { ...s, status: 'paid' as const, paidAt: new Date().toISOString() } : s
+    ));
+  }, [setSplitRequests]);
+
+  const getPendingSplitsForMember = useCallback((memberId: string) => {
+    return splitRequests.filter(s => s.fromMemberId === memberId && s.status === 'pending');
+  }, [splitRequests]);
+
+  const getSentSplitsForMember = useCallback((memberId: string) => {
+    return splitRequests.filter(s => s.toMemberId === memberId);
+  }, [splitRequests]);
+
   const slotsWithWinner = useMemo(() => {
     const max = Math.max(...deliverySlots.map(s => s.votes.length), 0);
     return deliverySlots.map(s => ({ ...s, isWinner: s.votes.length > 0 && s.votes.length === max }));
   }, [deliverySlots]);
 
   return (
-    <OrderContext.Provider value={{ currentOrder, placeOrder, history, deliverySlots: slotsWithWinner, voteSlot, clearCurrentOrder }}>
+    <OrderContext.Provider value={{
+      currentOrder, placeOrder, history, deliverySlots: slotsWithWinner, voteSlot, clearCurrentOrder,
+      splitRequests, addSplitRequest, markSplitPaid, getPendingSplitsForMember, getSentSplitsForMember,
+    }}>
       {children}
     </OrderContext.Provider>
   );
