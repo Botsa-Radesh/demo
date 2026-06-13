@@ -1,6 +1,6 @@
 import { Product } from '@/types';
 
-// Realistic product images from Unsplash via picsum.photos (seed-based = deterministic)
+// Realistic product images via picsum.photos (fallback while Unsplash API loads)
 function img(id: string): string {
   return `https://picsum.photos/seed/${id}/200/200`;
 }

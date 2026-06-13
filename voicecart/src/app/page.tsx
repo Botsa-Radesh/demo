@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCoins } from '@/context/CoinsContext';
@@ -8,6 +8,7 @@ import { useToast } from '@/components/NotificationToast';
 import { useMembers } from '@/context/MembersContext';
 import { products } from '@/data/products';
 import { Product } from '@/types';
+import { fetchProductImage } from '@/utils/unsplash';
 
 const categories = [
   { id: 'all', label: 'All', emoji: '🔥' },
@@ -20,21 +21,29 @@ const categories = [
   { id: 'Household', label: 'Household', emoji: '🧹' },
 ];
 
-function ProductImage({ src, alt, emoji }: { src: string; alt: string; emoji: string }) {
+function ProductImage({ productId, alt, emoji, query }: { productId: string; alt: string; emoji: string; query: string }) {
+  const [imgUrl, setImgUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchProductImage(productId, query).then(url => {
+      if (!cancelled && url) setImgUrl(url);
+    });
+    return () => { cancelled = true; };
+  }, [productId, query]);
+
+  if (imgUrl && !failed) {
+    return (
+      <div className="product-image-wrapper">
+        <img src={imgUrl} alt={alt} loading="lazy" onError={() => setFailed(true)} />
+      </div>
+    );
+  }
 
   return (
     <div className="product-image-wrapper">
-      <img
-        src={src}
-        alt={alt}
-        loading="lazy"
-        onError={() => setFailed(true)}
-        style={{ display: failed ? 'none' : 'block' }}
-      />
-      {failed && (
-        <span className="product-emoji-fallback">{emoji}</span>
-      )}
+      <span className="product-emoji-fallback" style={{ fontSize: 48 }}>{emoji}</span>
     </div>
   );
 }
@@ -134,7 +143,7 @@ export default function HomePage() {
               return (
                 <div key={product.id} className="product-card animate-fadeIn">
                   <div onClick={() => router.push(`/voice-cart?add=${product.id}`)}>
-                    <ProductImage src={product.imageUrl} alt={product.name} emoji={product.emoji} />
+                    <ProductImage productId={product.id} alt={product.name} emoji={product.emoji} query={product.name} />
                   </div>
                   <div
                     className="product-title"
