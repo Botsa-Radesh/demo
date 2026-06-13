@@ -45,7 +45,7 @@ export default function OrderConfirmationPage() {
 
   const handleSaveTemplate = () => {
     if (!templateName.trim()) return;
-    saveTemplate(templateName.trim());
+    saveTemplate(templateName.trim(), currentOrder.items.map(i => ({ productId: i.product.id, quantity: i.quantity })));
     showToast(`Template "${templateName}" saved!`, 'success');
     setShowSaveTemplate(false);
     setTemplateName('');

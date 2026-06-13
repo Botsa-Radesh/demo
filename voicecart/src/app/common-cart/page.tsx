@@ -17,9 +17,9 @@ export default function CommonCartPage() {
   const [createdCode, setCreatedCode] = useState('');
   const [joinResult, setJoinResult] = useState<string | null>(null);
 
-  const { personalCartId, carts, commonCarts, activeCartId, setActiveCart } = useCart();
+  const { personalCartId, carts, commonCarts, activeCartId, setActiveCart, leaveCommonCart } = useCart();
   const { createCommonCart, joinCommonCartByCode, pendingInvites, addInvite } = useCommonCart();
-  const { members, addMember } = useMembers();
+  const { members, addMember, currentUserId } = useMembers();
   const { showToast } = useToast();
   const router = useRouter();
 
@@ -27,17 +27,17 @@ export default function CommonCartPage() {
 
   const handleCreate = () => {
     const name = cartName.trim() || 'Common Cart';
-    const code = createCommonCart(name, 'm1', 'You', splitMode);
+    const code = createCommonCart(name, currentUserId, 'You', splitMode);
     setCreatedCode(code);
-    addInvite(code, name, 'You');
     showToast(`Common cart created! Code: ${code}`, 'success');
   };
 
-  const handleJoin = () => {
+  const handleJoin = async () => {
     if (!inviteCodeInput.trim()) return;
     const personName = joinName.trim() || `Member ${members.length}`;
-    const newMember = addMember(personName);
-    const joined = joinCommonCartByCode(inviteCodeInput.trim(), newMember.id);
+    const exists = members.some(m => m.name.toLowerCase() === personName.toLowerCase());
+    const newMember = exists ? members.find(m => m.name.toLowerCase() === personName.toLowerCase())! : addMember(personName);
+    const joined = await joinCommonCartByCode(inviteCodeInput.trim(), newMember.id);
     if (joined) {
       setJoinResult(`Joined as ${personName}!`);
       showToast(`Joined as ${personName}!`, 'success');
@@ -75,17 +75,10 @@ export default function CommonCartPage() {
                 🛒 Your Personal Cart
               </p>
               <p style={{ fontSize: 12, color: 'var(--amazon-text-secondary)', marginTop: 2 }}>
-                Code: <strong style={{ letterSpacing: 2, color: 'var(--amazon-orange)' }}>{personalCart.code}</strong>
-              </p>
-              <p style={{ fontSize: 11, color: 'var(--amazon-text-muted)' }}>
                 {personalCart.items.length} items · Split: {personalCart.splitMode}
               </p>
             </div>
             <div style={{ display: 'flex', gap: 4 }}>
-              <button className="btn btn-ghost btn-sm" style={{ fontSize: 11 }}
-                onClick={() => handleCopyCode(personalCart.code)}>
-                📋 Copy Code
-              </button>
               <button className="btn btn-primary btn-sm" style={{ fontSize: 11 }}
                 onClick={() => { setActiveCart(personalCart.id); router.push('/voice-cart'); }}>
                 Open
@@ -112,7 +105,7 @@ export default function CommonCartPage() {
                     {' · '}{cc.items.length} items · {cc.memberIds.length} members
                   </p>
                 </div>
-                <div style={{ display: 'flex', gap: 4 }}>
+                  <div style={{ display: 'flex', gap: 4 }}>
                   <button className="btn btn-ghost btn-sm" style={{ fontSize: 11 }}
                     onClick={() => handleCopyCode(cc.code)}>
                     📋
@@ -120,6 +113,10 @@ export default function CommonCartPage() {
                   <button className="btn btn-primary btn-sm" style={{ fontSize: 11 }}
                     onClick={() => { setActiveCart(cc.id); router.push('/voice-cart'); }}>
                     Open
+                  </button>
+                  <button className="btn btn-ghost btn-sm" style={{ fontSize: 11, color: 'var(--amazon-error)' }}
+                    onClick={() => { leaveCommonCart(cc.id, currentUserId); showToast(`Left "${cc.name}"`, 'info'); }}>
+                    Leave
                   </button>
                 </div>
               </div>

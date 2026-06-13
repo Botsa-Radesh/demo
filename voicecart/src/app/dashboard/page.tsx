@@ -34,6 +34,30 @@ export default function DashboardPage() {
 
   const currentUser = getMemberById(currentUserId);
 
+  useEffect(() => {
+    let cancelled = false;
+    const timeout = setTimeout(() => { if (!cancelled) setInsightsLoading(false); }, 8000);
+    async function load() {
+      setInsightsLoading(true);
+      try {
+        const orderData = history.map(o => ({
+          date: o.date,
+          totalAmount: o.totalAmount,
+          items: o.items.map(i => ({ name: i.product.name, quantity: i.quantity, price: i.product.price, category: i.product.category })),
+          memberPayments: o.memberPayments.map(p => ({ memberId: p.memberId, amount: p.amount })),
+        }));
+        const memberData = members.map(m => ({ id: m.id, name: m.name }));
+        const result = await generateDashboardInsights(orderData, memberData);
+        if (!cancelled) setInsights(result);
+      } catch {
+        if (!cancelled) setInsights([]);
+      }
+      if (!cancelled) setInsightsLoading(false);
+    }
+    load();
+    return () => { cancelled = true; clearTimeout(timeout); };
+  }, [history, members]);
+
   const monthlyTotal = useMemo(() =>
     history
       .filter(o => new Date(o.date).getMonth() === new Date().getMonth())

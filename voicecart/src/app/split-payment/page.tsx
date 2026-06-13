@@ -194,6 +194,9 @@ export default function SplitPaymentPage() {
               {payments.map(p => {
                 const member = getMemberById(p.memberId);
                 if (!member) return null;
+                const addedValue = items
+                  .filter(i => i.addedBy === p.memberId && !i.isShared)
+                  .reduce((s, i) => s + i.product.price * i.quantity, 0);
                 const coinInfo = calculateCoinsEarned(p.amount, p.method, splitMode !== 'family', streak);
                 const missed = getMissedCoins(p.memberId);
                 return (
@@ -202,6 +205,9 @@ export default function SplitPaymentPage() {
                       <MemberAvatar member={member} size={36} />
                       <div style={{ flex: 1 }}>
                         <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--amazon-text)' }}>{member.name}</p>
+                        <p style={{ fontSize: 11, color: 'var(--amazon-text-muted)', marginTop: 2 }}>
+                          Added ₹{addedValue} worth of items
+                        </p>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
                           <select value={p.method}
                             onChange={e => handleMethodChange(p.memberId, e.target.value as PaymentMethod)}
@@ -232,6 +238,7 @@ export default function SplitPaymentPage() {
                         )}
                       </div>
                       <div style={{ textAlign: 'right' }}>
+                        <p style={{ fontSize: 11, color: 'var(--amazon-text-muted)' }}>Pays</p>
                         <p style={{ fontSize: 18, fontWeight: 700, color: 'var(--amazon-price)' }}>₹{p.amount}</p>
                         <span className={`badge ${p.status === 'paid' ? 'badge-success' : 'badge-warning'}`}>
                           {p.status === 'paid' ? '✅ Paid' : '⏳ Pending'}
@@ -272,7 +279,7 @@ export default function SplitPaymentPage() {
               const m = getMemberById(p.memberId);
               return (
                 <button key={p.memberId} className="btn btn-secondary btn-sm"
-                  onClick={() => showToast(`Nudged ${m?.name || 'member'}!`, 'info')}>
+                  onClick={() => showToast(`🔔 Payment reminder sent to ${m?.name || 'member'}!`, 'success')}>
                   🔔 Nudge {m?.name || 'Member'}
                 </button>
               );

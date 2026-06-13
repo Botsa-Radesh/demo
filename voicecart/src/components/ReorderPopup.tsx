@@ -2,6 +2,13 @@
 import React from 'react';
 import { ReorderPrediction, getUrgencyColor } from '@/utils/reorderPredictor';
 
+function hexToRgba(hex: string, alpha: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
 interface ReorderPopupProps {
   predictions: ReorderPrediction[];
   onDismiss: () => void;
@@ -56,7 +63,7 @@ export function ReorderPopup({ predictions, onDismiss, onAddToCart, onAddAll }: 
               <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 4 }}>
                 <span style={{
                   fontSize: 10, fontWeight: 600, padding: '2px 6px', borderRadius: 4,
-                  background: getUrgencyColor(p.urgency) + '20',
+                  background: hexToRgba(getUrgencyColor(p.urgency), 0.12),
                   color: getUrgencyColor(p.urgency),
                 }}>
                   {p.urgency === 'high' ? '🔴 Running out' : p.urgency === 'medium' ? '🟡 Soon' : '🟢 Getting low'}

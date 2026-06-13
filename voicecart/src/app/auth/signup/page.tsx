@@ -82,9 +82,9 @@ export default function SignupPage() {
           </p>
         </div>
         <div className="auth-footer">
-          <a href="#">Conditions of Use</a>
-          <a href="#">Privacy Notice</a>
-          <a href="#">Help</a>
+          <a href="#" onClick={(e) => { e.preventDefault(); showToast('View Conditions of Use at amazon.com', 'info'); }}>Conditions of Use</a>
+          <a href="#" onClick={(e) => { e.preventDefault(); showToast('Privacy Notice available on request', 'info'); }}>Privacy Notice</a>
+          <a href="#" onClick={(e) => { e.preventDefault(); showToast('Visit help.voicecart.app for support', 'info'); }}>Help</a>
         </div>
       </div>
     </div>

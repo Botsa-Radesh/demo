@@ -202,12 +202,15 @@ function VoiceCartPageInner() {
         break;
       }
       case 'SHOW_CODE': {
-        if (activeCart) {
+        if (activeCart && activeCart.type === 'common') {
           setShowCodeCopied(true);
           navigator.clipboard.writeText(activeCart.code);
           showToast(`Cart code: ${activeCart.code}`, 'info');
           speak(`Your cart code is ${activeCart.code}`);
           setTimeout(() => setShowCodeCopied(false), 2000);
+        } else {
+          speak('Personal carts do not have a share code.');
+          showToast('Personal carts do not have a share code.', 'info');
         }
         break;
       }
@@ -217,7 +220,7 @@ function VoiceCartPageInner() {
       }
       case 'JOIN_CART': {
         if (command.params.code) {
-          const joined = joinCommonCartByCode(command.params.code, currentUserId);
+          const joined = await joinCommonCartByCode(command.params.code, currentUserId);
           if (joined) {
             showToast('Joined common cart!', 'success');
             speak('Joined common cart!');
@@ -381,7 +384,7 @@ function VoiceCartPageInner() {
   };
 
   const handleCopyCode = () => {
-    if (!activeCart) return;
+    if (!activeCart || activeCart.type !== 'common') return;
     navigator.clipboard.writeText(activeCart.code);
     setShowCodeCopied(true);
     showToast('Code copied!', 'success');
@@ -492,17 +495,58 @@ function VoiceCartPageInner() {
 
         {/* Summary Row */}
         {activeCart && (
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-              <span style={{ fontSize: 12, color: 'var(--amazon-text-secondary)' }}>
-                {totalItems} items · {activeCart.splitMode} split
-              </span>
-              <AIStatusBadge />
+          <>
+            {activeCart.type === 'common' && (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8,
+                padding: '6px 10px', background: '#fef4e8', borderRadius: 6,
+              }}>
+                <span style={{ fontSize: 11, color: 'var(--amazon-text-secondary)', fontWeight: 500 }}>
+                  Common Cart Code:
+                </span>
+                <code style={{
+                  fontSize: 14, fontWeight: 700, letterSpacing: 2, color: 'var(--amazon-orange)',
+                  fontFamily: 'monospace',
+                }}>
+                  {activeCart.code}
+                </code>
+                <button className="btn btn-ghost btn-sm" style={{ padding: '2px 8px', fontSize: 11, marginLeft: 'auto' }}
+                  onClick={handleCopyCode}>
+                  {showCodeCopied ? '✅ Copied!' : '📋 Copy'}
+                </button>
+              </div>
+            )}
+
+            {/* Split Mode Selector */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <span style={{ fontSize: 12, color: 'var(--amazon-text-secondary)' }}>Split mode:</span>
+              <div style={{ display: 'flex', gap: 4 }}>
+                {splitModeOptions.map(mode => (
+                  <button
+                    key={mode}
+                    className={`chip ${activeCart?.splitMode === mode ? 'active' : ''}`}
+                    style={{ fontSize: 11, padding: '2px 8px' }}
+                    onClick={() => activeCart && updateCartSplitMode(activeCart.id, mode)}
+                  >
+                    {mode === 'family' ? '👨‍👩‍👧' : mode === 'auto' ? '🧾' : mode === 'equal' ? '➗' : '✏️'}
+                    {' '}{mode.charAt(0).toUpperCase() + mode.slice(1)}
+                  </button>
+                ))}
+              </div>
             </div>
-            <span style={{ fontSize: 20, fontWeight: 700, color: 'var(--amazon-price)' }}>
-              ₹{totalPrice}
-            </span>
-          </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                <span style={{ fontSize: 13, color: 'var(--amazon-text-secondary)' }}>
+                  {totalItems} items
+                </span>
+                <AIStatusBadge />
+              </div>
+              <span style={{ fontSize: 20, fontWeight: 700, color: 'var(--amazon-price)' }}>
+                ₹{totalPrice}
+              </span>
+            </div>
+          </>
         )}
 
         {!activeCart && (
@@ -616,7 +660,17 @@ function VoiceCartPageInner() {
               setBudgetMode(!budgetMode);
               setMode(budgetMode ? 'normal' : 'budget');
               if (!budgetMode) handleBudgetCart(budgetAmount);
-            }}>💰 Budget</button>
+            }}>💰 Budget Mode</button>
+          <button className="chip"
+            onClick={() => {
+              const result = predictReorder(history, products);
+              if (result.predictions.length > 0) {
+                setReorderSummary(result);
+                setDismissedReorder(false);
+              } else {
+                showToast('No items to reorder yet!', 'info');
+              }
+            }}>📅 Reorder</button>
           <button className={`chip ${cartAnalysis ? 'active' : ''}`}
             onClick={handleAnalyzeCart} disabled={!activeCart || activeCart.items.length === 0 || isAnalyzing}>
             {isAnalyzing ? '⏳' : '🤖'} Analyze
@@ -658,6 +712,10 @@ function VoiceCartPageInner() {
             <p className="empty-state-desc">
               Tap the microphone and say something like &ldquo;add 2kg rice, milk, and 3 apples&rdquo; to get started.
             </p>
+            <button className="btn btn-primary btn-sm" style={{ marginTop: 12 }}
+              onClick={() => router.push('/search')}>
+              Browse Products
+            </button>
           </div>
         ) : (
           <>

@@ -57,8 +57,8 @@ export default function LoginPage() {
           </p>
           <details className="auth-help">
             <summary>Need help?</summary>
-            <a href="#">Forgot Password</a>
-            <a href="#">Other issues with sign-in</a>
+            <a href="#" onClick={(e) => { e.preventDefault(); showToast('Password reset coming soon!', 'info'); }}>Forgot Password</a>
+            <a href="#" onClick={(e) => { e.preventDefault(); showToast('Contact support at support@voicecart.app', 'info'); }}>Other issues with sign-in</a>
           </details>
         </div>
         <div className="auth-divider">
@@ -68,9 +68,9 @@ export default function LoginPage() {
           Create your VoiceCart account
         </Link>
         <div className="auth-footer">
-          <a href="#">Conditions of Use</a>
-          <a href="#">Privacy Notice</a>
-          <a href="#">Help</a>
+          <a href="#" onClick={(e) => { e.preventDefault(); showToast('View Conditions of Use at amazon.com', 'info'); }}>Conditions of Use</a>
+          <a href="#" onClick={(e) => { e.preventDefault(); showToast('Privacy Notice available on request', 'info'); }}>Privacy Notice</a>
+          <a href="#" onClick={(e) => { e.preventDefault(); showToast('Visit help.voicecart.app for support', 'info'); }}>Help</a>
         </div>
       </div>
     </div>
