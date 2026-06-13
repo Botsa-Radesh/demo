@@ -1,5 +1,5 @@
 'use client';
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCoins } from '@/context/CoinsContext';
 import { useCart } from '@/context/CartContext';
@@ -8,6 +8,7 @@ import { useMembers } from '@/context/MembersContext';
 import { useToast } from '@/components/NotificationToast';
 import { TemplateCard } from '@/components/TemplateCard';
 import { BarChart, DonutChart } from '@/components/AnalyticsChart';
+import { generateDashboardInsights, DashboardInsight } from '@/utils/llmService';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -16,6 +17,27 @@ export default function DashboardPage() {
   const { history } = useOrder();
   const { members } = useMembers();
   const { showToast } = useToast();
+  const [insights, setInsights] = useState<DashboardInsight[]>([]);
+  const [insightsLoading, setInsightsLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      setInsightsLoading(true);
+      const orderData = history.map(o => ({
+        date: o.date,
+        totalAmount: o.totalAmount,
+        items: o.items.map(i => ({ name: i.product.name, quantity: i.quantity, price: i.product.price, category: i.product.category })),
+        memberPayments: o.memberPayments.map(p => ({ memberId: p.memberId, amount: p.amount })),
+      }));
+      const memberData = members.map(m => ({ id: m.id, name: m.name }));
+      const result = await generateDashboardInsights(orderData, memberData);
+      if (!cancelled) setInsights(result);
+      setInsightsLoading(false);
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [history, members]);
 
   const monthlyTotal = history
     .filter(o => new Date(o.date).getMonth() === new Date().getMonth())
@@ -162,31 +184,22 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* AI Insights */}
+      {/* AI Insights — Powered by Gemini */}
       <div className="content-section" style={{ border: '1px solid #f0c14b' }}>
-        <h3 className="section-title">🤖 AI Insights</h3>
+        <h3 className="section-title">
+          🤖 AI Insights
+          {insightsLoading && <span style={{ fontSize: 11, color: 'var(--amazon-text-muted)', fontWeight: 400, marginLeft: 8 }}>analysing...</span>}
+        </h3>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div className="amazon-card" style={{ display: 'flex', gap: 8, alignItems: 'center', padding: 12 }}>
-            <span style={{ fontSize: 20 }}>🥛</span>
-            <div>
-              <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--amazon-text)' }}>You order milk every 3.5 days</p>
-              <p style={{ fontSize: 11, color: 'var(--amazon-text-muted)' }}>Based on 8 past orders</p>
+          {insights.map((insight, i) => (
+            <div key={i} className="amazon-card animate-fadeIn" style={{ display: 'flex', gap: 8, alignItems: 'center', padding: 12 }}>
+              <span style={{ fontSize: 20 }}>{insight.emoji}</span>
+              <div>
+                <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--amazon-text)' }}>{insight.title}</p>
+                <p style={{ fontSize: 11, color: 'var(--amazon-text-muted)' }}>{insight.detail}</p>
+              </div>
             </div>
-          </div>
-          <div className="amazon-card" style={{ display: 'flex', gap: 8, alignItems: 'center', padding: 12 }}>
-            <span style={{ fontSize: 20 }}>🍟</span>
-            <div>
-              <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--amazon-text)' }}>Group snack spending ↑ 40% vs last month</p>
-              <p style={{ fontSize: 11, color: 'var(--amazon-text-muted)' }}>Mainly Lays and Maggi</p>
-            </div>
-          </div>
-          <div className="amazon-card" style={{ display: 'flex', gap: 8, alignItems: 'center', padding: 12 }}>
-            <span style={{ fontSize: 20 }}>🏷️</span>
-            <div>
-              <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--amazon-text)' }}>Switch to Amazon brands → save ₹320/month</p>
-              <p style={{ fontSize: 11, color: 'var(--amazon-text-muted)' }}>On staples and dairy</p>
-            </div>
-          </div>
+          ))}
         </div>
       </div>
 
