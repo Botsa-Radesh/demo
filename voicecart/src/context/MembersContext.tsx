@@ -4,11 +4,20 @@ import { Member, Allergen, DietType } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { defaultMembers } from '@/data/members';
 
+const avatars = ['👨‍💻', '👩‍🍳', '👨‍🎓', '👩‍💼', '👨‍🏫', '👩‍🔧', '👨‍🎨', '👩‍🚀', '👨‍⚕️', '👩‍🌾'];
+let avatarIndex = 0;
+function nextAvatar(): string {
+  const a = avatars[avatarIndex % avatars.length];
+  avatarIndex++;
+  return a;
+}
+
 interface MembersContextType {
   members: Member[];
   currentUserId: string;
   updateMember: (memberId: string, updates: Partial<Member>) => void;
   getMemberById: (memberId: string) => Member | undefined;
+  addMember: (name: string, avatar?: string) => Member;
   toggleMemberOnline: (memberId: string) => void;
   toggleMemberTyping: (memberId: string) => void;
 }
@@ -25,6 +34,25 @@ export function MembersProvider({ children }: { children: React.ReactNode }) {
 
   const getMemberById = useCallback((memberId: string) => members.find(m => m.id === memberId), [members]);
 
+  const addMember = useCallback((name: string, avatar?: string): Member => {
+    const existing = members.find(m => m.name === name);
+    if (existing) return existing;
+    const member: Member = {
+      id: `m${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+      name,
+      avatar: avatar || nextAvatar(),
+      role: 'member',
+      diet: 'veg',
+      allergies: [],
+      favoriteBrands: [],
+      dislikes: [],
+      isOnline: false,
+      isTyping: false,
+    };
+    setMembers(prev => [...prev, member]);
+    return member;
+  }, [members, setMembers]);
+
   const toggleMemberOnline = useCallback((memberId: string) => {
     setMembers(prev => prev.map(m => m.id === memberId ? { ...m, isOnline: !m.isOnline } : m));
   }, [setMembers]);
@@ -34,7 +62,7 @@ export function MembersProvider({ children }: { children: React.ReactNode }) {
   }, [setMembers]);
 
   return (
-    <MembersContext.Provider value={{ members, currentUserId, updateMember, getMemberById, toggleMemberOnline, toggleMemberTyping }}>
+    <MembersContext.Provider value={{ members, currentUserId, updateMember, getMemberById, addMember, toggleMemberOnline, toggleMemberTyping }}>
       {children}
     </MembersContext.Provider>
   );

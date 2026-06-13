@@ -35,7 +35,7 @@ export function CartItemRow({
           alt={item.product.name}
           style={{ width: '100%', height: '100%', objectFit: 'cover' }}
           loading="lazy"
-          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).parentElement!.textContent = item.product.emoji; (e.target as HTMLImageElement).parentElement!.style.fontSize = '24px'; }}
+          onError={(e) => { const img = e.target as HTMLImageElement; img.style.display = 'none'; const parent = img.parentElement; if (parent) { parent.textContent = item.product.emoji; parent.style.fontSize = '24px'; } }}
         />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>

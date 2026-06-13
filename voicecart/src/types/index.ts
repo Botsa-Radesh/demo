@@ -21,6 +21,19 @@ export type DietType = 'veg' | 'non-veg' | 'vegan';
 
 export type SplitMode = 'family' | 'auto' | 'equal' | 'custom';
 
+export interface Cart {
+  id: string;
+  code: string;
+  name: string;
+  type: 'personal' | 'common';
+  splitMode: SplitMode;
+  createdBy: string;
+  memberIds: string[];
+  items: CartItem[];
+  isActive: boolean;
+  createdAt: string;
+}
+
 export type PaymentMethod = 'amazon_pay' | 'phonepay' | 'paytm' | 'gpay' | 'card';
 
 export type OrderStatus = 'pending' | 'confirmed' | 'shipped' | 'delivered';
@@ -104,9 +117,16 @@ export interface DeliverySlot {
   isWinner: boolean;
 }
 
+export interface LLMItem {
+  productName: string;
+  quantity: number;
+  unit?: string;
+}
+
 export interface VoiceCommandResult {
-  intent: 'ADD_ITEM' | 'REMOVE_ITEM' | 'RECIPE' | 'BUDGET' | 'TEMPLATE' | 'SUMMARY' | 'CHECKOUT' | 'MARK_SHARED' | 'HIGHLIGHT' | 'REORDER' | 'UNKNOWN';
+  intent: 'ADD_ITEM' | 'REMOVE_ITEM' | 'RECIPE' | 'RECIPE_ADD' | 'BUDGET' | 'TEMPLATE' | 'SUMMARY' | 'CHECKOUT' | 'MARK_SHARED' | 'HIGHLIGHT' | 'REORDER' | 'ADD_BATCH' | 'SWITCH_CART' | 'CREATE_COMMON' | 'JOIN_CART' | 'SHOW_CODE' | 'UNKNOWN';
   params: Record<string, string>;
+  items?: LLMItem[];
   originalText: string;
   response: string;
 }

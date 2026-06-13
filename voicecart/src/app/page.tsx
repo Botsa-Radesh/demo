@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useCoins } from '@/context/CoinsContext';
 import { useCart } from '@/context/CartContext';
 import { useToast } from '@/components/NotificationToast';
+import { useMembers } from '@/context/MembersContext';
 import { products } from '@/data/products';
 import { Product } from '@/types';
 
@@ -27,7 +28,8 @@ function StarRating({ rating }: { rating: number }) {
 export default function HomePage() {
   const router = useRouter();
   const { balance, nextMilestone } = useCoins();
-  const { addItem } = useCart();
+  const { addItem, activeCart, activeCartId, createPersonalCart, setActiveCart, personalCartId } = useCart();
+  const { currentUserId, getMemberById } = useMembers();
   const { showToast } = useToast();
   const [activeCategory, setActiveCategory] = useState('all');
 
@@ -47,7 +49,14 @@ export default function HomePage() {
     : products.filter(p => p.category === activeCategory);
 
   const handleAddToCart = (product: Product) => {
-    addItem(product, 1, 'm1', false);
+    if (!activeCartId) {
+      if (!personalCartId) {
+        createPersonalCart(currentUserId, getMemberById(currentUserId)?.name || 'You');
+      } else {
+        setActiveCart(personalCartId);
+      }
+    }
+    addItem(product, 1, currentUserId, false);
     showToast(`${product.name} added to cart!`, 'success');
   };
 
@@ -132,7 +141,7 @@ export default function HomePage() {
                       alt={product.name}
                       style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                       loading="lazy"
-                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).parentElement!.textContent = product.emoji; }}
+                      onError={(e) => { const img = e.target as HTMLImageElement; img.style.display = 'none'; const parent = img.parentElement; if (parent) { parent.textContent = product.emoji; } }}
                     />
                   </div>
                   <div

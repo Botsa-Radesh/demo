@@ -12,17 +12,20 @@ import { DeliverySlotVoting } from '@/components/DeliverySlotVoting';
 import { MemberAvatar } from '@/components/MemberAvatar';
 import { calculateSplitPayments } from '@/utils/priceCalc';
 import { calculateCoinsEarned, calculateMissedCoins } from '@/utils/coinsCalculator';
-import { SplitMode, PaymentMethod, MemberPayment } from '@/types';
+import { SplitMode, PaymentMethod, MemberPayment, CartItem } from '@/types';
 
 export default function SplitPaymentPage() {
   const router = useRouter();
-  const { items, totalItems, totalPrice, clearCart } = useCart();
+  const { activeCart, clearCart } = useCart();
+  const items = activeCart?.items || [];
+  const totalItems = items.reduce((s, i) => s + i.quantity, 0);
+  const totalPrice = items.reduce((s, i) => s + i.product.price * i.quantity, 0);
   const { members, currentUserId, getMemberById } = useMembers();
   const { balance, addCoins, streak, incrementStreak } = useCoins();
   const { placeOrder, deliverySlots } = useOrder();
   const { showToast } = useToast();
 
-  const [splitMode, setSplitMode] = useState<SplitMode>('auto');
+  const [splitMode, setSplitMode] = useState<SplitMode>(activeCart?.splitMode || 'auto');
   const [payments, setPayments] = useState<MemberPayment[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);

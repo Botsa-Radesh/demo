@@ -1,6 +1,55 @@
 import { Order } from '@/types';
 
-const img = (id: string) => `https://picsum.photos/seed/${id}/200/200`;
+const img = (id: string) => {
+  const queries: Record<string, string> = {
+    onion: 'onion vegetable',
+    tomato: 'tomato vegetable',
+    potato: 'potato vegetable',
+    banana: 'banana fruit bunch',
+    apple: 'red apple fruit',
+    spinach: 'spinach leaves green',
+    capsicum: 'capsicum bell pepper',
+    milk: 'milk glass bottle dairy',
+    milk2: 'milk glass',
+    curd: 'yogurt curd bowl',
+    paneer: 'paneer indian cheese',
+    butter: 'butter golden block',
+    cream: 'fresh cream dairy',
+    rice: 'rice grains white',
+    toordal: 'toor dal lentils yellow',
+    flour: 'wheat flour atta',
+    sugar: 'sugar white granules',
+    oil: 'cooking oil bottle',
+    salt: 'salt white crystals',
+    maggi: 'maggi noodles pack',
+    lays: 'lays potato chips',
+    parleg: 'parle glucose biscuit',
+    haldiram: 'namkeen snack mixture',
+    coldcoffee: 'cold coffee glass',
+    cocacola: 'coca cola can',
+    sprite: 'sprite lemon soda',
+    mangojuice: 'mango juice glass',
+    greentea: 'green tea cup',
+    chai: 'chai masala tea',
+    shampoo: 'shampoo bottle',
+    facewash: 'face wash tube',
+    soap: 'bath soap bar',
+    toothpaste: 'toothpaste tube',
+    detergent: 'detergent powder laundry',
+    floorcleaner: 'floor cleaner bottle',
+    dishwash: 'dish soap liquid',
+    toiletcleaner: 'toilet cleaner bottle',
+    turmeric: 'turmeric powder spice',
+    chilli: 'red chilli powder spice',
+    garammasala: 'garam masala powder',
+    chicken: 'raw chicken meat',
+    eggs: 'eggs white brown',
+    peanutbutter: 'peanut butter jar',
+    cornflakes: 'corn flakes cereal',
+  };
+  const q = encodeURIComponent(queries[id] || id);
+  return `https://source.unsplash.com/200x200/?${q}`;
+};
 
 export const orderHistory: Order[] = [
   {

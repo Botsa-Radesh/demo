@@ -176,7 +176,7 @@ export default function DashboardPage() {
           <div className="amazon-card" style={{ display: 'flex', gap: 8, alignItems: 'center', padding: 12 }}>
             <span style={{ fontSize: 20 }}>🍟</span>
             <div>
-              <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--amazon-text)' }}>Amit&apos;s snack spending ↑ 40% vs last month</p>
+              <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--amazon-text)' }}>Group snack spending ↑ 40% vs last month</p>
               <p style={{ fontSize: 11, color: 'var(--amazon-text-muted)' }}>Mainly Lays and Maggi</p>
             </div>
           </div>

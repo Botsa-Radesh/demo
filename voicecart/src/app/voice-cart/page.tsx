@@ -15,12 +15,13 @@ import { BudgetBar } from '@/components/BudgetBar';
 import { useVoice } from '@/hooks/useVoice';
 import { useSpeechSynthesis } from '@/hooks/useSpeechSynthesis';
 import { parseVoiceCommand } from '@/utils/voiceParser';
+import { matchLLMItemsToProducts, analyzeCart, CartAnalysis } from '@/utils/llmService';
 import { optimizeCartForBudget } from '@/utils/budgetOptimizer';
 import { findSubstitution } from '@/utils/substitutionEngine';
 import { checkAllergies } from '@/utils/allergyChecker';
 import { searchProducts, products } from '@/data/products';
 import { recipes, getRecipeById } from '@/data/recipes';
-import { Recipe } from '@/types';
+import { Recipe, Cart, SplitMode, CartItem } from '@/types';
 import { AllergyWarning as AllergyWarningType } from '@/utils/allergyChecker';
 
 type PageMode = 'voice' | 'recipe' | 'budget' | 'normal';
@@ -29,11 +30,14 @@ function VoiceCartPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const {
-    items, addItem, removeItem, updateQuantity, toggleShared, clearCart,
+    carts, activeCartId, personalCartId, activeCart, commonCarts,
+    setActiveCart, createPersonalCart, joinCommonCart,
+    updateCartSplitMode, updateCartName,
+    addItem, removeItem, updateQuantity, toggleShared, clearCart,
     totalItems, totalPrice, getItemsByMember, getSharedItems,
   } = useCart();
   const { members, currentUserId, getMemberById } = useMembers();
-  const { currentCart } = useCommonCart();
+  const { pendingInvites, joinCommonCartByCode } = useCommonCart();
   const { showToast } = useToast();
   const { isSupported, isListening, transcript, interimTranscript, startListening, stopListening } = useVoice();
   const { speak } = useSpeechSynthesis();
@@ -48,8 +52,23 @@ function VoiceCartPageInner() {
   const [budgetMode, setBudgetMode] = useState(false);
   const [budgetAmount, setBudgetAmount] = useState(500);
   const [highlightMember, setHighlightMember] = useState<string | null>(null);
+  const [showCartSelector, setShowCartSelector] = useState(false);
+  const [editingCartName, setEditingCartName] = useState(false);
+  const [cartNameInput, setCartNameInput] = useState('');
+  const [showCodeCopied, setShowCodeCopied] = useState(false);
+  const [cartAnalysis, setCartAnalysis] = useState<CartAnalysis | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const cartRef = useRef<HTMLDivElement>(null);
+
+  // Ensure personal cart exists
+  useEffect(() => {
+    if (!activeCartId && !personalCartId) {
+      createPersonalCart(currentUserId, getMemberById(currentUserId)?.name || 'User');
+    } else if (!activeCartId && personalCartId) {
+      setActiveCart(personalCartId);
+    }
+  }, [activeCartId, personalCartId, createPersonalCart, currentUserId, getMemberById, setActiveCart]);
 
   useEffect(() => {
     const budget = searchParams.get('budget');
@@ -61,18 +80,76 @@ function VoiceCartPageInner() {
     }
   }, [searchParams]);
 
+  const handleBatchAdd = useCallback(async (productsToAdd: { productId: string; quantity: number }[]) => {
+    for (const { productId, quantity } of productsToAdd) {
+      const product = products.find(p => p.id === productId);
+      if (!product) continue;
+      if (product.stockStatus === 'out_of_stock') {
+        const sub = findSubstitution(product);
+        if (sub) {
+          addItem(sub.suggested, 1, currentUserId, true);
+          showToast(`${product.name} out of stock! Added ${sub.suggested.name} instead`, 'warning');
+          speak(`${sub.suggested.name} added as substitute`);
+        }
+      } else {
+        addItem(product, quantity, currentUserId, false);
+        const warning = checkAllergies(product, members, products);
+        if (warning) {
+          setTimeout(() => setAllergyWarning(warning), 500);
+        }
+      }
+    }
+  }, [addItem, currentUserId, members, showToast, speak]);
+
   const handleVoiceCommand = useCallback(async (text: string) => {
     setMicStatus('processing');
     setIsAiTyping(true);
 
     await new Promise(r => setTimeout(r, 600));
 
-    const command = parseVoiceCommand(text);
+    const command = await parseVoiceCommand(text);
     setAiResponse(command.response);
     setIsAiTyping(false);
     setRecentCommands(prev => [text, ...prev].slice(0, 5));
 
+    // Require active cart for item-related intents
+    const needsCart = ['ADD_ITEM', 'ADD_BATCH', 'RECIPE_ADD', 'RECIPE', 'BUDGET', 'REMOVE_ITEM', 'MARK_SHARED'];
+    if (needsCart.includes(command.intent) && !activeCart) {
+      showToast('Select a cart first before adding items!', 'warning');
+      speak('Please select a cart first by tapping the cart name at the top.');
+      setMicStatus('idle');
+      return;
+    }
+
     switch (command.intent) {
+      case 'ADD_BATCH': {
+        if (command.items && command.items.length > 0) {
+          const matched = matchLLMItemsToProducts(command.items);
+          const toAdd = matched
+            .filter(m => m.matchedProduct)
+            .map(m => ({ productId: m.matchedProduct!.id, quantity: m.quantity }));
+
+          if (toAdd.length > 0) {
+            await handleBatchAdd(toAdd);
+            const names = toAdd.map(t => {
+              const p = products.find(pr => pr.id === t.productId);
+              return `${t.quantity} ${p?.name || ''}`;
+            }).join(', ');
+            showToast(`Added ${names}`, 'success');
+            speak(command.response);
+          } else {
+            const fallback = products.find(p => p.id === command.params.productId);
+            if (fallback) {
+              addItem(fallback, parseInt(command.params.quantity) || 1, currentUserId, false);
+              showToast(`Added ${fallback.name}`, 'success');
+              speak(`Added ${fallback.name} to cart!`);
+            } else {
+              speak("I didn't recognize those items. Try again!");
+            }
+          }
+        }
+        break;
+      }
       case 'ADD_ITEM': {
         const product = products.find(p => p.id === command.params.productId);
         if (product) {
@@ -96,11 +173,66 @@ function VoiceCartPageInner() {
         }
         break;
       }
+      case 'SWITCH_CART': {
+        const target = command.params.target;
+        if (target === 'common' && commonCarts.length > 0) {
+          setActiveCart(commonCarts[0].id);
+          speak('Switched to common cart!');
+        } else if (personalCartId) {
+          setActiveCart(personalCartId);
+          speak('Switched to your personal cart!');
+        }
+        break;
+      }
+      case 'SHOW_CODE': {
+        if (activeCart) {
+          setShowCodeCopied(true);
+          navigator.clipboard.writeText(activeCart.code);
+          showToast(`Cart code: ${activeCart.code}`, 'info');
+          speak(`Your cart code is ${activeCart.code}`);
+          setTimeout(() => setShowCodeCopied(false), 2000);
+        }
+        break;
+      }
+      case 'CREATE_COMMON': {
+        router.push(`/common-cart?name=${encodeURIComponent(command.params.name || 'Common Cart')}`);
+        break;
+      }
+      case 'JOIN_CART': {
+        if (command.params.code) {
+          const joined = joinCommonCartByCode(command.params.code, currentUserId);
+          if (joined) {
+            showToast('Joined common cart!', 'success');
+            speak('Joined common cart!');
+          } else {
+            showToast('Cart not found!', 'error');
+            speak('Cart not found. Try a different code.');
+          }
+        }
+        break;
+      }
       case 'REMOVE_ITEM': {
-        const toRemove = items.find(i => i.product.id === command.params.productId);
+        const actCart = activeCart;
+        if (!actCart) break;
+        const toRemove = actCart.items.find(i => i.product.id === command.params.productId);
         if (toRemove) removeItem(toRemove.id);
         showToast(command.response, 'success');
         speak(command.response);
+        break;
+      }
+      case 'RECIPE_ADD': {
+        const recipe = getRecipeById(command.params.recipeId);
+        if (recipe) {
+          const servings = parseInt(command.params.servings) || recipe.servings;
+          const scale = servings / recipe.servings;
+          const scaledIngredients = recipe.ingredients.map(ing => ({
+            productId: ing.mappedProductId,
+            quantity: Math.max(1, Math.round(scale)),
+          }));
+          await handleBatchAdd(scaledIngredients);
+          showToast(`Added all ingredients for ${recipe.name} (${servings} servings)!`, 'success');
+          speak(`Added all ${recipe.ingredients.length} ingredients for ${recipe.name} to your cart!`);
+        }
         break;
       }
       case 'RECIPE': {
@@ -128,12 +260,14 @@ function VoiceCartPageInner() {
         break;
       }
       case 'SUMMARY': {
-        const summary = items.map(i => `${i.quantity} ${i.product.name}`).join(', ');
+        if (!activeCart) break;
+        const summary = activeCart.items.map(i => `${i.quantity} ${i.product.name}`).join(', ');
         speak(`Your cart has ${totalItems} items: ${summary || 'nothing yet'}`);
         break;
       }
       case 'MARK_SHARED': {
-        const item = items.find(i => i.product.id === command.params.productId);
+        if (!activeCart) break;
+        const item = activeCart.items.find(i => i.product.id === command.params.productId);
         if (item) toggleShared(item.id);
         speak(command.response);
         break;
@@ -141,7 +275,7 @@ function VoiceCartPageInner() {
       case 'HIGHLIGHT': {
         setHighlightMember(command.params.memberId);
         const member = getMemberById(command.params.memberId);
-        speak(`Here&apos;s what ${member?.name || 'they'} added`);
+        speak(`Here's what ${member?.name || 'they'} added`);
         setTimeout(() => setHighlightMember(null), 3000);
         break;
       }
@@ -155,21 +289,28 @@ function VoiceCartPageInner() {
         break;
       }
       default: {
-        const product = searchProducts(text)[0];
-        if (product) {
-          addItem(product, 1, currentUserId, false);
-          showToast(`Added ${product.name}`, 'success');
-          speak(`Added ${product.name} to cart!`);
-        } else {
-          speak("I didn't quite catch that. Try again!");
+        if (activeCart) {
+          const product = searchProducts(text)[0];
+          if (product) {
+            addItem(product, 1, currentUserId, false);
+            showToast(`Added ${product.name}`, 'success');
+            speak(`Added ${product.name} to cart!`);
+          } else {
+            speak("I didn't quite catch that. Try again!");
+          }
         }
       }
     }
 
     setMicStatus('idle');
-  }, [items, addItem, removeItem, toggleShared, showToast, speak, members, currentUserId, totalItems, router, getMemberById]);
+  }, [activeCart, addItem, removeItem, toggleShared, showToast, speak, members, currentUserId, totalItems, router, getMemberById, setActiveCart, personalCartId, commonCarts, joinCommonCartByCode, handleBatchAdd]);
 
   const handleMicToggle = useCallback(() => {
+    if (!activeCart) {
+      showToast('Select a cart first!', 'warning');
+      speak('Please select a cart at the top before using voice.');
+      return;
+    }
     if (isListening) {
       stopListening();
       if (transcript) handleVoiceCommand(transcript);
@@ -179,18 +320,42 @@ function VoiceCartPageInner() {
       setMicStatus('listening');
       setAiResponse('');
     }
-  }, [isListening, stopListening, startListening, transcript, handleVoiceCommand]);
+  }, [isListening, stopListening, startListening, transcript, handleVoiceCommand, activeCart, showToast, speak]);
 
   const handleBudgetCart = (amount: number) => {
-    const result = optimizeCartForBudget(amount, items, currentUserId);
+    if (!activeCart) return;
+    const result = optimizeCartForBudget(amount, activeCart.items, currentUserId);
     for (const item of result.items) {
       addItem(item.product, item.quantity, currentUserId, true);
     }
     showToast(`Budget cart under ₹${amount} built!`, 'success');
   };
 
+  const handleAnalyzeCart = useCallback(async () => {
+    if (!activeCart || activeCart.items.length === 0) return;
+    setIsAnalyzing(true);
+    const items = activeCart.items.map(i => ({
+      name: i.product.name,
+      quantity: i.quantity,
+      category: i.product.category,
+      price: i.product.price,
+    }));
+    const result = await analyzeCart(items);
+    if (result) {
+      setCartAnalysis(result);
+      speak(result.summary);
+    } else {
+      showToast('Analysis failed. Check your API key.', 'error');
+    }
+    setIsAnalyzing(false);
+  }, [activeCart, showToast, speak]);
+
   const handleTextSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!activeCart) {
+      showToast('Select a cart first!', 'warning');
+      return;
+    }
     const val = inputRef.current?.value;
     if (val) {
       handleVoiceCommand(val);
@@ -198,36 +363,184 @@ function VoiceCartPageInner() {
     }
   };
 
+  const handleCopyCode = () => {
+    if (!activeCart) return;
+    navigator.clipboard.writeText(activeCart.code);
+    setShowCodeCopied(true);
+    showToast('Code copied!', 'success');
+    setTimeout(() => setShowCodeCopied(false), 2000);
+  };
+
+  const splitModeOptions: SplitMode[] = ['family', 'auto', 'equal', 'custom'];
+
   const sharedItems = getSharedItems();
-  const memberItemMap = members.reduce((acc, m) => {
+  const cartMembers = activeCart ? members.filter(m => activeCart.memberIds.includes(m.id)) : [];
+  const memberItemMap = cartMembers.reduce((acc, m) => {
     acc[m.id] = getItemsByMember(m.id);
     return acc;
-  }, {} as Record<string, typeof items>);
+  }, {} as Record<string, CartItem[]>);
 
   return (
     <div className="page-content" style={{ paddingTop: 16, paddingBottom: 80 }}>
-      {/* Header */}
-      <div className="amazon-card" style={{ marginBottom: 16 }}>
+      {/* Cart Selector Prominent */}
+      <div className="amazon-card" style={{ marginBottom: 16, background: activeCart ? '#fff' : '#fff8e1', border: activeCart ? '' : '2px solid #f0c14b' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <button className="back-btn" onClick={() => router.push('/')}>←</button>
-            <h1 style={{ fontSize: 18, fontWeight: 700, color: 'var(--amazon-text)' }}>
-              {currentCart?.name || 'My Cart'}
-            </h1>
+            <div style={{ position: 'relative', flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ fontSize: 11, color: 'var(--amazon-text-muted)', fontWeight: 500 }}>Cart:</span>
+                <h1
+                  style={{ fontSize: 16, fontWeight: 700, color: 'var(--amazon-text)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                  onClick={() => setShowCartSelector(!showCartSelector)}
+                >
+                  {activeCart?.name || 'Select a cart...'}
+                  <span style={{ fontSize: 10, color: 'var(--amazon-text-muted)' }}>▼</span>
+                </h1>
+              </div>
+              {showCartSelector && (
+                <div style={{
+                  position: 'absolute', top: '100%', left: 0, zIndex: 100,
+                  background: '#fff', border: '1px solid var(--amazon-border)',
+                  borderRadius: 8, boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                  minWidth: 260, padding: 8, marginTop: 4,
+                }}>
+                  <p style={{ fontSize: 11, color: 'var(--amazon-text-muted)', padding: '4px 8px', marginBottom: 4 }}>
+                    Select a cart to add items
+                  </p>
+                  {personalCartId && carts[personalCartId] && (
+                    <div
+                      style={{
+                        padding: '10px 12px', borderRadius: 6, cursor: 'pointer',
+                        background: activeCartId === personalCartId ? '#fef4e8' : 'transparent',
+                        display: 'flex', alignItems: 'center', gap: 8,
+                      }}
+                      onClick={() => { setActiveCart(personalCartId); setShowCartSelector(false); }}
+                    >
+                      <span style={{ fontSize: 18 }}>🛒</span>
+                      <div>
+                        <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--amazon-text)' }}>{carts[personalCartId].name}</p>
+                        <p style={{ fontSize: 11, color: 'var(--amazon-text-muted)' }}>Personal · {carts[personalCartId].items.length} items</p>
+                      </div>
+                      {activeCartId === personalCartId && <span style={{ marginLeft: 'auto', fontSize: 11, color: '#b12704' }}>✓ Active</span>}
+                    </div>
+                  )}
+                  {commonCarts.map(cc => (
+                    <div
+                      key={cc.id}
+                      style={{
+                        padding: '10px 12px', borderRadius: 6, cursor: 'pointer',
+                        background: activeCartId === cc.id ? '#fef4e8' : 'transparent',
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        borderTop: '1px solid var(--amazon-border-light)',
+                      }}
+                      onClick={() => { setActiveCart(cc.id); setShowCartSelector(false); }}
+                    >
+                      <span style={{ fontSize: 18 }}>🏠</span>
+                      <div>
+                        <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--amazon-text)' }}>{cc.name}</p>
+                        <p style={{ fontSize: 11, color: 'var(--amazon-text-muted)' }}>Common · {cc.items.length} items</p>
+                      </div>
+                      {activeCartId === cc.id && <span style={{ marginLeft: 'auto', fontSize: 11, color: '#b12704' }}>✓ Active</span>}
+                    </div>
+                  ))}
+                  <div style={{ borderTop: '1px solid var(--amazon-border-light)', marginTop: 4, paddingTop: 4 }}>
+                    <button className="btn btn-ghost btn-sm w-full" style={{ fontSize: 12 }}
+                      onClick={() => { setShowCartSelector(false); router.push('/common-cart'); }}>
+                      + New Common Cart
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
           <div style={{ display: 'flex', gap: 4 }}>
-            {members.map(m => <MemberAvatar key={m.id} member={m} size={32} />)}
+            {activeCart ? members.filter(m => activeCart.memberIds.includes(m.id)).map(m => <MemberAvatar key={m.id} member={m} size={28} />) : null}
           </div>
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontSize: 13, color: 'var(--amazon-text-secondary)' }}>
-            {totalItems} items
-          </span>
-          <span style={{ fontSize: 20, fontWeight: 700, color: 'var(--amazon-price)' }}>
-            ₹{totalPrice}
-          </span>
-        </div>
+
+        {activeCart && (
+          <>
+            {/* Cart Code Row */}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8,
+              padding: '6px 10px', background: '#fef4e8', borderRadius: 6,
+            }}>
+              <span style={{ fontSize: 11, color: 'var(--amazon-text-secondary)', fontWeight: 500 }}>
+                {activeCart.type === 'personal' ? 'Personal' : 'Common'} Cart Code:
+              </span>
+              <code style={{
+                fontSize: 14, fontWeight: 700, letterSpacing: 2, color: 'var(--amazon-orange)',
+                fontFamily: 'monospace',
+              }}>
+                {activeCart.code}
+              </code>
+              <button className="btn btn-ghost btn-sm" style={{ padding: '2px 8px', fontSize: 11, marginLeft: 'auto' }}
+                onClick={handleCopyCode}>
+                {showCodeCopied ? '✅ Copied!' : '📋 Copy'}
+              </button>
+            </div>
+
+            {/* Split Mode Selector */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <span style={{ fontSize: 12, color: 'var(--amazon-text-secondary)' }}>Split mode:</span>
+              <div style={{ display: 'flex', gap: 4 }}>
+                {splitModeOptions.map(mode => (
+                  <button
+                    key={mode}
+                    className={`chip ${activeCart?.splitMode === mode ? 'active' : ''}`}
+                    style={{ fontSize: 11, padding: '2px 8px' }}
+                    onClick={() => activeCart && updateCartSplitMode(activeCart.id, mode)}
+                  >
+                    {mode === 'family' ? '👨‍👩‍👧' : mode === 'auto' ? '🧾' : mode === 'equal' ? '➗' : '✏️'}
+                    {' '}{mode.charAt(0).toUpperCase() + mode.slice(1)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 13, color: 'var(--amazon-text-secondary)' }}>
+                {totalItems} items
+              </span>
+              <span style={{ fontSize: 20, fontWeight: 700, color: 'var(--amazon-price)' }}>
+                ₹{totalPrice}
+              </span>
+            </div>
+          </>
+        )}
+
+        {!activeCart && (
+          <div style={{ textAlign: 'center', padding: '12px 0' }}>
+            <p style={{ fontSize: 13, color: 'var(--amazon-text-secondary)', marginBottom: 8 }}>
+              👆 Select a cart above to start adding items
+            </p>
+          </div>
+        )}
       </div>
+
+      {/* Pending Invites */}
+      {pendingInvites.length > 0 && (
+        <div className="amazon-card" style={{ marginBottom: 16, padding: 12, borderColor: '#f0c14b', background: '#fffbf0' }}>
+          <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: 'var(--amazon-text)' }}>
+            📩 Pending Invites
+          </p>
+          {pendingInvites.map((inv, i) => (
+            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+              <span style={{ fontSize: 12, color: 'var(--amazon-text-secondary)' }}>
+                {inv.cartName} · <code style={{ fontSize: 11 }}>{inv.code}</code>
+              </span>
+              <button className="btn btn-primary btn-sm" style={{ fontSize: 11 }}
+                onClick={() => {
+                  joinCommonCartByCode(inv.code, currentUserId);
+                  showToast('Joined cart!', 'success');
+                }}>
+                Join
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Budget Bar */}
       {budgetMode && (
@@ -250,7 +563,7 @@ function VoiceCartPageInner() {
         <form onSubmit={handleTextSubmit} style={{ display: 'flex', gap: 8, marginTop: 8 }}>
           <input
             ref={inputRef}
-            placeholder="Type a command..."
+            placeholder='e.g. "add 2kg rice, 1 packet pasta, 3 apples"'
             style={{ flex: 1, fontSize: 13, padding: '8px 12px' }}
           />
           <button type="submit" className="btn btn-primary btn-sm">Send</button>
@@ -276,7 +589,31 @@ function VoiceCartPageInner() {
             onClick={() => {
               showToast('Essentials added!', 'success');
             }}>📅 Reorder</button>
+          <button className={`chip ${cartAnalysis ? 'active' : ''}`}
+            onClick={handleAnalyzeCart} disabled={!activeCart || activeCart.items.length === 0 || isAnalyzing}>
+            {isAnalyzing ? '⏳' : '🤖'} AI Analyze
+          </button>
         </div>
+
+        {/* Cart Analysis Results */}
+        {cartAnalysis && (
+          <div className="animate-fadeIn" style={{ marginTop: 12, padding: 12, background: '#f0f8ff', borderRadius: 8, border: '1px solid #b7d4f0' }}>
+            <p style={{ fontSize: 13, fontWeight: 600, color: '#1a73e8', marginBottom: 6 }}>🤖 AI Cart Analysis</p>
+            <p style={{ fontSize: 12, color: 'var(--amazon-text)', marginBottom: 4 }}>{cartAnalysis.summary}</p>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', fontSize: 11, color: 'var(--amazon-text-secondary)' }}>
+              <span style={{ background: cartAnalysis.balanced ? '#e6f7e6' : '#fff3cd', padding: '2px 6px', borderRadius: 4 }}>
+                {cartAnalysis.balanced ? '✅ Balanced' : '⚠️ Needs variety'}
+              </span>
+              {cartAnalysis.duplicates && (
+                <span style={{ background: '#fff3cd', padding: '2px 6px', borderRadius: 4 }}>📋 Has duplicates</span>
+              )}
+            </div>
+            <p style={{ fontSize: 11, color: 'var(--amazon-text-secondary)', marginTop: 4 }}>💡 {cartAnalysis.tip}</p>
+            <p style={{ fontSize: 11, color: 'var(--amazon-text-muted)', marginTop: 2 }}>🔔 {cartAnalysis.missing}</p>
+            <button className="btn btn-ghost btn-sm" style={{ fontSize: 10, marginTop: 4, padding: '2px 8px' }}
+              onClick={() => setCartAnalysis(null)}>Dismiss</button>
+          </div>
+        )}
 
         {/* Recent Commands */}
         {recentCommands.length > 0 && (
@@ -293,11 +630,14 @@ function VoiceCartPageInner() {
 
       {/* Cart Section */}
       <div ref={cartRef}>
-        {items.length === 0 ? (
+        {!activeCart || activeCart.items.length === 0 ? (
           <div className="amazon-card" style={{ textAlign: 'center', padding: 32 }}>
             <span style={{ fontSize: 48 }}>🛒</span>
             <p style={{ fontSize: 14, color: 'var(--amazon-text-secondary)', marginTop: 8 }}>
               Your cart is empty. Tap the mic to start!
+            </p>
+            <p style={{ fontSize: 12, color: 'var(--amazon-text-muted)', marginTop: 4 }}>
+              Try: "add 2kg rice, 1 packet pasta and 3 apples"
             </p>
           </div>
         ) : (
@@ -321,7 +661,7 @@ function VoiceCartPageInner() {
             )}
 
             {/* Per-Member Items */}
-            {members.map(m => {
+            {cartMembers.map(m => {
               const memberItems = memberItemMap[m.id] || [];
               if (memberItems.length === 0) return null;
               const isHighlighted = highlightMember === m.id;
@@ -355,6 +695,7 @@ function VoiceCartPageInner() {
               <div>
                 <p style={{ fontSize: 13, color: 'var(--amazon-text-secondary)' }}>Grand Total</p>
                 <p style={{ fontSize: 11, color: 'var(--amazon-text-muted)' }}>{totalItems} items</p>
+                <p style={{ fontSize: 11, color: 'var(--amazon-orange)' }}>Split: {activeCart?.splitMode || 'auto'}</p>
               </div>
               <span style={{ fontSize: 24, fontWeight: 700, color: 'var(--amazon-price)' }}>₹{totalPrice}</span>
             </div>
